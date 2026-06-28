@@ -1,0 +1,8 @@
+{
+  "app": "python cdk/app.py",
+  "watch": {
+    "include": ["cdk/**"],
+    "exclude": ["cdk.out/**", "**/__pycache__/**"]
+  },
+  "context": {}
+}

@@ -1,0 +1,26 @@
+platforms:
+  linkedin:
+    enabled: true
+    ssm_token_key: /quillcast/linkedin/tokens
+
+  facebook:
+    enabled: false   # flip to true when ready — no code changes needed
+    ssm_token_key: /quillcast/facebook/tokens
+
+  blog:
+    enabled: false
+    type: ghost      # ghost | wordpress | hugo_github
+    ssm_token_key: /quillcast/blog/tokens
+
+rss_feeds:
+  - url: https://hnrss.org/frontpage
+    category: tech
+  - url: https://feeds.feedburner.com/TechCrunch
+    category: tech
+  - url: https://www.theverge.com/rss/index.xml
+    category: tech
+
+rss_filter:
+  min_article_age_hours: 1
+  max_article_age_hours: 48
+  max_articles_per_run: 5

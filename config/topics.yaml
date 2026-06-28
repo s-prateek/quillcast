@@ -1,0 +1,17 @@
+voice:
+  author_name: Your Name            # update this
+  description: >
+    Direct, opinionated, and practical. No filler phrases.
+    Write like a practitioner sharing hard-won lessons, not a marketer.
+    Use short paragraphs. End posts with a genuine question or a sharp observation.
+  target_audience: Software engineers and tech leads
+
+evergreen_topics:
+  - Lessons from shipping side projects
+  - What nobody tells you about working with distributed systems
+  - Hard decisions I've made as an engineer and what I learned
+  - The gap between how engineering is taught and how it's actually practiced
+  - Tools that genuinely changed how I work
+  - What I wish I knew earlier in my career
+  - Underrated skills that separate good engineers from great ones
+  - How I approach debugging complex problems
