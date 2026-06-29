@@ -34,23 +34,13 @@ test before moving on. Check off tasks as you complete them.
 - [ ] Run OAuth flow: `export LINKEDIN_CLIENT_ID=... LINKEDIN_CLIENT_SECRET=... && python scripts/linkedin_oauth.py`
 - [ ] Confirm tokens stored: `aws ssm get-parameter --name /quillcast/linkedin/tokens --with-decryption`
 
-### 1.5 Telegram bot *(optional — for push notifications only)*
-- [ ] Create bot via @BotFather, copy `bot_token`
-- [ ] Send a message to the bot, then run: `python scripts/get_telegram_chat_id.py`
-- [ ] Verify it works: `export TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=... && python scripts/test_telegram.py`
-- [ ] Store in SSM:
-  ```
-  aws ssm put-parameter --name /quillcast/telegram/bot_token --value "..." --type SecureString
-  aws ssm put-parameter --name /quillcast/telegram/chat_id   --value "..." --type String
-  ```
-
 **Phase 1 done when:** DynamoDB table and S3 bucket exist in AWS, config files are uploaded,
 LinkedIn tokens are in SSM and verified, `cdk synth` passes cleanly. ✅ `cdk synth` already passes.
 
 ---
 
 ## Phase 2 — Content Generation
-*Goal: Running the Lambda (or the script locally) picks a topic, calls Bedrock, and writes a record to DynamoDB. Telegram notification fires.*
+*Goal: Running the Lambda (or the script locally) picks a topic, calls Bedrock, and writes a record to DynamoDB.*
 
 ### 2.1 Shared models
 - [ ] `shared/models.py` — `PostRecord`, `PostContent`, `PublishResult` dataclasses
@@ -69,18 +59,18 @@ LinkedIn tokens are in SSM and verified, `cdk synth` passes cleanly. ✅ `cdk sy
 - [ ] Handle malformed JSON responses with a retry (max 2 attempts)
 
 ### 2.4 Lambda handler
-- [ ] `lambdas/generate_post/handler.py` — wire together: fetch topics → select best → call Bedrock → write DynamoDB → send Telegram notification
+- [ ] `lambdas/generate_post/handler.py` — wire together: fetch topics → select best → call Bedrock → write DynamoDB
 - [ ] `lambdas/generate_post/requirements.txt` (`boto3`, `feedparser`)
 
 ### 2.5 CDK — LambdaStack (generation)
 - [ ] Define `generate_post` Lambda (Python 3.12, 512 MB, 5 min timeout)
-- [ ] IAM role: `bedrock:InvokeModel`, `dynamodb:PutItem`, `s3:GetObject`, `ssm:GetParameter`
+- [ ] IAM role: `bedrock:InvokeModel`, `dynamodb:PutItem`, `s3:GetObject`
 - [ ] `cdk deploy LambdaStack`
 - [ ] Invoke manually: `aws lambda invoke --function-name quillcast-generate-post out.json`
 - [ ] Verify record appears in DynamoDB with `OverallStatus: PENDING`
 
 **Phase 2 done when:** A DynamoDB record exists with properly formatted `ContentVariants`
-and a Telegram message arrives on your phone.
+and `OverallStatus: PENDING`.
 
 ---
 
@@ -152,7 +142,7 @@ hit Publish, and see the post go live on LinkedIn without touching the terminal.
   - [ ] Lambda permission for EventBridge to invoke `generate_post`
 - [ ] `cdk deploy SchedulerStack`
 - [ ] Set AWS Budget alert at **$5/month** in the console (one-time manual step)
-- [ ] Let it run for 3 days and verify 3 Telegram notifications + 3 DynamoDB records
+- [ ] Let it run for 3 days and verify 3 new DynamoDB records
 - [ ] Check DLQ is empty (no failed runs)
 
 **Phase 5 done when:** Drafts appear in DynamoDB every morning without you doing anything.
@@ -164,7 +154,7 @@ hit Publish, and see the post go live on LinkedIn without touching the terminal.
 
 - [ ] Write `README.md`:
   - What it does + architecture diagram (copy from `design.md`)
-  - Prerequisites (AWS account, LinkedIn Developer App, Telegram bot)
+  - Prerequisites (AWS account, LinkedIn Developer App)
   - Step-by-step setup (Phase 1–5 condensed)
   - How to add a new platform
 - [ ] `publishers/facebook.py` — stub with `NotImplementedError` and a docstring explaining the API

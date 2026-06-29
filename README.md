@@ -272,9 +272,7 @@ quillcast/
 │   └── topics.yaml             # Author voice + evergreen topics
 │
 ├── scripts/
-│   ├── linkedin_oauth.py       # OAuth flow helper
-│   ├── get_telegram_chat_id.py # Telegram setup helper
-│   └── test_telegram.py        # Telegram notification test
+│   └── linkedin_oauth.py       # OAuth flow helper
 │
 ├── docs/
 │   ├── design.md               # Full architecture & data model

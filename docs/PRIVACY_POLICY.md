@@ -55,7 +55,6 @@ In addition to LinkedIn OAuth data, Quillcast processes the following informatio
 | Topic and source metadata | RSS feeds and your configuration files | Select topics and attribute sources | DynamoDB; configuration in Amazon S3 |
 | Author display settings (name, headline, profile picture URL) | Your local `.env` file | Render a local LinkedIn preview in the Streamlit UI only | Your local machine; **not sent to LinkedIn** |
 | Voice and topic preferences | `config/topics.yaml` | Guide AI draft generation | Amazon S3 in your AWS account |
-| Telegram bot token and chat ID (optional) | Your configuration | Send draft and publish notifications | SSM Parameter Store (if enabled) |
 | Operational logs | AWS Lambda and related services | Debugging and error diagnosis | Amazon CloudWatch Logs in your AWS account |
 
 Quillcast does **not** use cookies, web analytics, or third-party advertising trackers. The review UI runs locally on your computer and is not hosted as a public website.
@@ -71,7 +70,6 @@ We use the information described above only to:
 - **Display a local preview** of how a post may appear on LinkedIn before you publish.
 - **Publish content to LinkedIn** when you explicitly click **Publish** in the local UI. **No post is published automatically** without your review and approval.
 - **Record publish status** (success, failure, LinkedIn post ID, timestamps) so you can track what was published.
-- **Send optional notifications** (e.g., via Telegram) about draft availability or publish results.
 
 We do **not** use LinkedIn data or any other information for:
 
@@ -108,7 +106,6 @@ Information is shared only with the following categories of recipients, and only
 | **LinkedIn** | OAuth provider and publishing destination | OAuth tokens during API calls; post content you choose to publish |
 | **Amazon Web Services (AWS)** | Infrastructure hosting (DynamoDB, S3, SSM, Lambda, CloudWatch, Bedrock) | All application data stored and processed in your AWS account |
 | **Anthropic (via Amazon Bedrock)** | AI content generation | Topic text, voice/audience configuration, and RSS-derived context used to generate drafts — **not** your LinkedIn OAuth tokens |
-| **Telegram** (optional) | Push notifications | Notification messages (e.g., draft topic, publish status) — **not** your LinkedIn OAuth tokens |
 
 Because Quillcast is self-hosted, **you** control your AWS account and are responsible for access policies applied to that account.
 

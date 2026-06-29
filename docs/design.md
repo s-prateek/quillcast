@@ -10,8 +10,7 @@ A serverless, event-driven application that:
 
 - Discovers trending topics daily via RSS feeds and a curated manual list
 - Generates platform-adapted draft posts using Amazon Bedrock (Claude Haiku)
-- Notifies you via Telegram when drafts are ready for review
-- Provides a **local** Streamlit UI for previewing (platform-accurate card mock-up), editing, and approving posts
+- Surfaces pending drafts in a **local** Streamlit UI for previewing (platform-accurate card mock-up), editing, and approving posts
 - Publishes approved content to LinkedIn (and future platforms) via their APIs
 
 **Design Priorities (in order):**
@@ -36,8 +35,7 @@ generate_post Lambda
   ├── Merge with topics.yaml overrides (from S3)
   ├── Select best topic for the day
   ├── Invoke Bedrock (Claude Haiku) → structured JSON with a variant per enabled platform
-  ├── Write PostRecord to DynamoDB (OverallStatus: PENDING)
-  └── Send Telegram notification: "📝 New draft ready for review"
+  └── Write PostRecord to DynamoDB (OverallStatus: PENDING)
 
 User opens Streamlit UI locally  →  streamlit run ui/app.py
   ├── Queries DynamoDB GSI for PENDING records
@@ -63,7 +61,6 @@ publish_post Lambda
 | Bedrock — Claude Haiku | LLM generation | ~$0.01/month (30 posts × ~500 tokens) |
 | S3 | `platforms.yaml`, `topics.yaml`, RSS cache | ~$0 |
 | SSM Parameter Store (Standard) | OAuth tokens per platform | Free |
-| Telegram Bot API | Push notifications | Free |
 | **Total** | | **~$0.01–0.05/month** |
 
 > No App Runner, no Fargate, no Secrets Manager. The Streamlit UI runs locally on demand — it is not hosted.
@@ -197,8 +194,8 @@ User:   Topic: {selected_topic}
         Only include keys for: {enabled_platforms}
 ```
 
-On success: write record to DynamoDB, then send Telegram notification.
-On failure: write to CloudWatch Logs, send Telegram error alert. EventBridge DLQ captures the failed invocation for manual retry.
+On success: write record to DynamoDB.
+On failure: write to CloudWatch Logs. EventBridge DLQ captures the failed invocation for manual retry.
 
 ---
 
@@ -255,21 +252,7 @@ Platform constraints (character limits, image support, etc.) are also sourced fr
 
 ---
 
-## 7. Telegram Notifications
-
-Telegram is used for **push notifications only** — not for approval or editing.
-
-| Event | Telegram Message |
-|---|---|
-| Draft ready | "📝 New draft ready: *AI agents in enterprise*. Open review UI to approve." |
-| Post published | "✅ Posted to LinkedIn: [link]" |
-| Generation failed | "❌ Generation failed: {error summary}. Check CloudWatch." |
-
-Setup: create a bot via @BotFather → store `bot_token` and `chat_id` in SSM at `/quillcast/telegram/bot_token` and `/quillcast/telegram/chat_id`.
-
----
-
-## 8. Publisher System
+## 7. Publisher System
 
 ### Interface (`publishers/base.py`)
 
@@ -324,7 +307,7 @@ result = publisher.publish(content)
 
 ---
 
-## 9. Platform Configuration (`config/platforms.yaml`)
+## 8. Platform Configuration (`config/platforms.yaml`)
 
 ```yaml
 platforms:
@@ -344,7 +327,7 @@ platforms:
 
 ---
 
-## 10. LinkedIn API Integration
+## 9. LinkedIn API Integration
 
 - **Auth:** OAuth 2.0 three-legged flow. Store `access_token`, `refresh_token`, and `token_expiry` (ISO 8601) together as a JSON string in a single SSM Standard Parameter.
 - **Token Refresh:** Before every publish call, check `token_expiry`. If within 7 days, refresh proactively and update SSM. LinkedIn access tokens expire in 60 days; refresh tokens in 365 days.
@@ -358,7 +341,7 @@ platforms:
 
 ---
 
-## 11. Infrastructure (AWS CDK — Python)
+## 10. Infrastructure (AWS CDK — Python)
 
 Three stacks, deployed together via `cdk deploy --all`:
 
@@ -372,12 +355,12 @@ Three stacks, deployed together via `cdk deploy --all`:
 
 | Lambda | Permissions |
 |---|---|
-| `generate_post` | `bedrock:InvokeModel`, `dynamodb:PutItem`, `s3:GetObject` (config bucket), `ssm:GetParameter` (Telegram only) |
+| `generate_post` | `bedrock:InvokeModel`, `dynamodb:PutItem`, `s3:GetObject` (config bucket) |
 | `publish_post` | `dynamodb:GetItem`, `dynamodb:UpdateItem`, `ssm:GetParameter` (platform tokens), `ssm:PutParameter` (token refresh) |
 
 ---
 
-## 12. Project Structure
+## 11. Project Structure
 
 ```
 quillcast/
@@ -428,12 +411,12 @@ quillcast/
 
 ---
 
-## 13. Implementation Phases
+## 12. Implementation Phases
 
 | Phase | Tasks |
 |---|---|
 | **1 — Foundation** | Finalize project name; CDK `StorageStack` (DynamoDB + S3); upload `platforms.yaml` + `topics.yaml` to S3; LinkedIn Developer App registration + OAuth flow; store tokens in SSM |
-| **2 — Generation** | `shared/models.py` dataclasses; `shared/config.py` S3 loader; `generate_post` Lambda (RSS fetch → topic selection → Bedrock call → DynamoDB write → Telegram notify); CDK `LambdaStack` |
+| **2 — Generation** | `shared/models.py` dataclasses; `shared/config.py` S3 loader; `generate_post` Lambda (RSS fetch → topic selection → Bedrock call → DynamoDB write); CDK `LambdaStack` |
 | **3 — Publisher** | `publishers/base.py` interface + `registry.py`; `publishers/linkedin.py` with OAuth refresh + retry; `publish_post` Lambda + Function URL |
 | **4 — UI** | Streamlit app: sidebar draft list, platform tabs, LinkedIn preview component, edit + char counter + publish flow |
 | **5 — Automation** | CDK `SchedulerStack` (EventBridge daily cron + DLQ); end-to-end test run; AWS Budget alert at $5/month |
@@ -441,7 +424,7 @@ quillcast/
 
 ---
 
-## 14. Risks & Mitigation
+## 13. Risks & Mitigation
 
 | Risk | Mitigation |
 |---|---|
@@ -454,7 +437,7 @@ quillcast/
 
 ---
 
-## 15. Open Questions
+## 14. Open Questions
 
 - [ ] **Blog platform** — Ghost, WordPress, or Hugo + GitHub Pages? Affects Phase 6 stub implementation
 - [ ] **Author profile config** — name, headline, profile picture URL needed for the Streamlit LinkedIn preview mock-up (not sent to LinkedIn, display only)
