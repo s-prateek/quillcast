@@ -19,20 +19,20 @@ test before moving on. Check off tasks as you complete them.
 - [x] Define DynamoDB table `quillcast-drafts` (On-Demand billing, `PostID` as PK)
 - [x] Add GSI: `OverallStatus-CreatedAt-index` (PK: `OverallStatus`, SK: `CreatedAt`)
 - [x] Define S3 bucket for config files — CDK generates unique name including account ID
-- [ ] Refresh AWS credentials, then `cdk bootstrap` (one-time per account/region)
-- [ ] `cdk deploy QuillcastStorageStack` — verify resources appear in AWS console
+- [x] Refresh AWS credentials, then `cdk bootstrap` (one-time per account/region)
+- [x] `cdk deploy QuillcastStorageStack` — verify resources appear in AWS console
 
 ### 1.3 Config files in S3
 - [x] Write `config/platforms.yaml` (LinkedIn enabled, Facebook + blog disabled)
 - [x] Write `config/topics.yaml` (voice description + 8 evergreen topics)
-- [ ] Upload both to S3 after deploy: `aws s3 cp config/ s3://<ConfigBucketName>/config/ --recursive`
+- [x] Upload both to S3 after deploy: `aws s3 cp config/ s3://<ConfigBucketName>/config/ --recursive`
 
 ### 1.4 LinkedIn OAuth
-- [ ] Register app at [LinkedIn Developer Portal](https://developer.linkedin.com/) — add `http://localhost:8080/callback` as redirect URL
-- [ ] Request `w_member_social` permission scope (may take a few days for approval)
+- [x] Register app at [LinkedIn Developer Portal](https://developer.linkedin.com/) — add `http://localhost:8080/callback` as redirect URL
+- [x] Request `w_member_social` permission scope (may take a few days for approval)
 - [ ] Enable Amazon Bedrock Claude Haiku model access in your AWS region via the [Bedrock console](https://console.aws.amazon.com/bedrock/)
-- [ ] Run OAuth flow: `export LINKEDIN_CLIENT_ID=... LINKEDIN_CLIENT_SECRET=... && python scripts/linkedin_oauth.py`
-- [ ] Confirm tokens stored: `aws ssm get-parameter --name /quillcast/linkedin/tokens --with-decryption`
+- [x] Run OAuth flow: `export LINKEDIN_CLIENT_ID=... LINKEDIN_CLIENT_SECRET=... && python scripts/linkedin_oauth.py`
+- [x] Confirm tokens stored: `aws ssm get-parameter --name /quillcast/linkedin/tokens --with-decryption`
 
 **Phase 1 done when:** DynamoDB table and S3 bucket exist in AWS, config files are uploaded,
 LinkedIn tokens are in SSM and verified, `cdk synth` passes cleanly. ✅ `cdk synth` already passes.
@@ -43,29 +43,29 @@ LinkedIn tokens are in SSM and verified, `cdk synth` passes cleanly. ✅ `cdk sy
 *Goal: Running the Lambda (or the script locally) picks a topic, calls Bedrock, and writes a record to DynamoDB.*
 
 ### 2.1 Shared models
-- [ ] `shared/models.py` — `PostRecord`, `PostContent`, `PublishResult` dataclasses
-- [ ] `shared/dynamodb.py` — helpers: `put_record()`, `get_record()`, `update_target_status()`
-- [ ] `shared/config.py` — loads `platforms.yaml` and `topics.yaml` from S3
+- [x] `shared/models.py` — `PostRecord`, `PostContent`, `PublishResult` dataclasses
+- [x] `shared/dynamodb.py` — helpers: `put_record()`, `get_record()`, `update_target_status()`
+- [x] `shared/config.py` — loads `platforms.yaml` and `topics.yaml` from S3
 
 ### 2.2 RSS fetcher
-- [ ] `lambdas/generate_post/rss.py` — fetch + parse configured RSS feeds using `feedparser`
-- [ ] Filter by `min_article_age_hours` / `max_article_age_hours`
-- [ ] Return ranked list of `(title, url, summary)` tuples
+- [x] `lambdas/generate_post/rss.py` — fetch + parse configured RSS feeds using `feedparser`
+- [x] Filter by `min_article_age_hours` / `max_article_age_hours`
+- [x] Return ranked list of `(title, url, summary)` tuples
 
 ### 2.3 Bedrock call
-- [ ] `lambdas/generate_post/bedrock.py` — build the structured prompt (see `design.md §5`)
-- [ ] Invoke `anthropic.claude-haiku-4-5` via `boto3` Bedrock Runtime client
-- [ ] Parse JSON response into `ContentVariants` dict
-- [ ] Handle malformed JSON responses with a retry (max 2 attempts)
+- [x] `lambdas/generate_post/bedrock.py` — build the structured prompt (see `design.md §5`)
+- [x] Invoke `anthropic.claude-haiku-4-5` via `boto3` Bedrock Runtime client
+- [x] Parse JSON response into `ContentVariants` dict
+- [x] Handle malformed JSON responses with a retry (max 2 attempts)
 
 ### 2.4 Lambda handler
-- [ ] `lambdas/generate_post/handler.py` — wire together: fetch topics → select best → call Bedrock → write DynamoDB
-- [ ] `lambdas/generate_post/requirements.txt` (`boto3`, `feedparser`)
+- [x] `lambdas/generate_post/handler.py` — wire together: fetch topics → select best → call Bedrock → write DynamoDB
+- [x] `lambdas/generate_post/requirements.txt` (`boto3`, `feedparser`)
 
 ### 2.5 CDK — LambdaStack (generation)
-- [ ] Define `generate_post` Lambda (Python 3.12, 512 MB, 5 min timeout)
-- [ ] IAM role: `bedrock:InvokeModel`, `dynamodb:PutItem`, `s3:GetObject`
-- [ ] `cdk deploy LambdaStack`
+- [x] Define `generate_post` Lambda (Python 3.12, 512 MB, 5 min timeout)
+- [x] IAM role: `bedrock:InvokeModel`, `dynamodb:PutItem`, `s3:GetObject`
+- [ ] `cdk deploy QuillcastLambdaStack`
 - [ ] Invoke manually: `aws lambda invoke --function-name quillcast-generate-post out.json`
 - [ ] Verify record appears in DynamoDB with `OverallStatus: PENDING`
 

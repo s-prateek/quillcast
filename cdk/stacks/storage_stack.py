@@ -1,10 +1,16 @@
 import aws_cdk as cdk
 from aws_cdk import (
-    RemovalPolicy,
-    aws_dynamodb as dynamodb,
-    aws_s3 as s3,
-    aws_ssm as ssm,
     CfnOutput,
+    RemovalPolicy,
+)
+from aws_cdk import (
+    aws_dynamodb as dynamodb,
+)
+from aws_cdk import (
+    aws_s3 as s3,
+)
+from aws_cdk import (
+    aws_ssm as ssm,
 )
 from constructs import Construct
 
