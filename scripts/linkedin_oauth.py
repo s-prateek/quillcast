@@ -7,22 +7,25 @@ Prerequisites:
     pip install boto3
     export LINKEDIN_CLIENT_ID=...
     export LINKEDIN_CLIENT_SECRET=...
-    export AWS_REGION=us-east-1  (or your region)
+    export AWS_REGION=...  (optional — defaults to `aws configure get region`)
 
 Usage:
     python scripts/linkedin_oauth.py
 """
-import hashlib
-import json
 import os
 import secrets
+import sys
 import urllib.parse
 import urllib.request
 import webbrowser
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 import boto3
+
+from shared.aws_env import resolve_region
 
 REDIRECT_URI = "http://localhost:8080/callback"
 SCOPES = ["openid", "profile", "w_member_social"]
@@ -59,7 +62,7 @@ class _CallbackHandler(BaseHTTPRequestHandler):
 def main():
     client_id = os.environ.get("LINKEDIN_CLIENT_ID")
     client_secret = os.environ.get("LINKEDIN_CLIENT_SECRET")
-    region = os.environ.get("AWS_REGION", "us-east-1")
+    region = resolve_region()
 
     if not client_id or not client_secret:
         raise SystemExit(

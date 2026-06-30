@@ -2,18 +2,23 @@
 import os
 import sys
 
-# Ensure cdk/ is on the path so stack imports resolve correctly
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Ensure project root and cdk/ are on the path
+_cdk_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(_cdk_dir)
+sys.path.insert(0, _cdk_dir)
+sys.path.insert(0, _project_root)
 
-import aws_cdk as cdk
+import aws_cdk as cdk  # noqa: E402
+from stacks.lambda_stack import LambdaStack  # noqa: E402
+from stacks.storage_stack import StorageStack  # noqa: E402
 
-from stacks.storage_stack import StorageStack
+from shared.aws_env import resolve_account_id, resolve_region  # noqa: E402
 
 app = cdk.App()
 
 env = cdk.Environment(
-    account=os.environ.get("CDK_DEFAULT_ACCOUNT"),
-    region=os.environ.get("CDK_DEFAULT_REGION", "us-east-1"),
+    account=resolve_account_id(),
+    region=resolve_region(),
 )
 
 StorageStack(app, "QuillcastStorageStack", env=env)
