@@ -12,7 +12,6 @@ Prerequisites:
 Usage:
     python scripts/linkedin_oauth.py
 """
-import hashlib
 import json
 import os
 import secrets
@@ -78,7 +77,7 @@ def main():
         "state": state,
     })
     auth_url = f"https://www.linkedin.com/oauth/v2/authorization?{auth_params}"
-    print(f"Opening browser for LinkedIn authorization...")
+    print("Opening browser for LinkedIn authorization...")
     print(f"If it doesn't open automatically, visit:\n  {auth_url}\n")
     webbrowser.open(auth_url)
 
@@ -136,7 +135,7 @@ def main():
         Overwrite=True,
     )
 
-    print(f"\n✅ Tokens stored in SSM: /quillcast/linkedin/tokens")
+    print("\n✅ Tokens stored in SSM: /quillcast/linkedin/tokens")
     print(f"   Token expires: {token_expiry}")
     print(f"   Refresh token present: {'yes' if refresh_token else 'no'}")
 
