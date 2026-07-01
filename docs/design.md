@@ -297,8 +297,6 @@ quillcast/
 
 ## 11. Implementation Phases
 
-See [PLAN.md](PLAN.md).
-
 | Phase | Focus |
 |-------|-------|
 | 1 | Config + LinkedIn OAuth |
