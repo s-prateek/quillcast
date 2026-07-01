@@ -114,6 +114,13 @@ python scripts/run_generate_post.py
 ls data/drafts/
 ```
 
+### Review & publish (UI)
+
+```bash
+pip install -r ui/requirements.txt
+streamlit run ui/app.py
+```
+
 **Claude (default):** [console.anthropic.com](https://console.anthropic.com/)  
 **Gemini:** set `LLM_PROVIDER=gemini` and `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey)
 
@@ -189,6 +196,8 @@ quillcast/
 │
 ├── publishers/                 # Platform API integrations (Phase 3)
 ├── ui/                         # Streamlit review UI (Phase 4)
+│   ├── app.py
+│   └── components/
 │
 ├── config/
 │   ├── platforms.yaml
@@ -200,6 +209,7 @@ quillcast/
 │
 ├── scripts/
 │   ├── run_generate_post.py
+│   ├── publish_post.py
 │   └── linkedin_oauth.py
 │
 ├── docs/

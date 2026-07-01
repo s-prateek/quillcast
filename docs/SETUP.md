@@ -190,7 +190,26 @@ Ensure `http://localhost:8080/callback` is registered exactly in your LinkedIn a
 
 ---
 
-## 7. Optional: schedule daily generation
+## 8. Review UI (Phase 4)
+
+Open the Streamlit app to preview, edit, and publish pending drafts:
+
+```bash
+pip install -r ui/requirements.txt
+streamlit run ui/app.py
+```
+
+- **Sidebar** — lists `PENDING` drafts from `data/drafts/`
+- **Main panel** — topic, source link, platform tabs
+- **LinkedIn tab** — card preview, editable text, character counter
+- **Publish** — posts to LinkedIn and updates the draft JSON
+- **Archive** — skip a platform without publishing
+
+Set `AUTHOR_NAME`, `AUTHOR_HEADLINE`, and optional `AUTHOR_PROFILE_PIC_URL` in `.env` for the LinkedIn preview card.
+
+---
+
+## 9. Optional: schedule daily generation
 
 Run locally with cron (macOS/Linux):
 
@@ -208,7 +227,7 @@ Make sure `.env` is sourced in the cron job or API keys are exported in the cron
 
 ---
 
-## 8. Directory layout after setup
+## 10. Directory layout after setup
 
 ```
 quillcast/
@@ -224,6 +243,4 @@ quillcast/
 ## Next steps
 
 See [docs/PLAN.md](docs/PLAN.md) for the implementation roadmap:
-- **Phase 3** — LinkedIn publisher
-- **Phase 4** — Streamlit review UI
 - **Phase 5** — Cron automation (local)

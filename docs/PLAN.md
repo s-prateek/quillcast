@@ -76,12 +76,12 @@ Phases are sequential. Each phase ends with something that works end-to-end.
 *Goal: Streamlit app shows pending drafts, lets you edit, and publishes.*
 
 ### 4.1 Components
-- [ ] `ui/components/linkedin_preview.py` — LinkedIn card HTML mock-up
-- [ ] `ui/components/platform_tab.py` — preview + edit + publish/skip/archive
+- [x] `ui/components/linkedin_preview.py` — LinkedIn card HTML mock-up
+- [x] `ui/components/platform_tab.py` — preview + edit + publish/skip/archive
 
 ### 4.2 Streamlit app
-- [ ] `ui/app.py` — sidebar draft list, platform tabs, publish flow
-- [ ] `ui/requirements.txt` (`streamlit`)
+- [x] `ui/app.py` — sidebar draft list, platform tabs, publish flow
+- [x] `ui/requirements.txt` (`streamlit`)
 
 **Phase 4 done when:** You can open the UI, edit a draft, hit Publish, and see it on LinkedIn.
 
