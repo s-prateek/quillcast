@@ -129,7 +129,11 @@ def main():
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(token_payload, indent=2), encoding="utf-8")
 
+<<<<<<< HEAD
     print(f"\n✅ Tokens saved to {path}")
+=======
+    print("\n✅ Tokens stored in SSM: /quillcast/linkedin/tokens")
+>>>>>>> origin/main
     print(f"   Token expires: {token_expiry}")
     print(f"   Refresh token present: {'yes' if refresh_token else 'no'}")
 

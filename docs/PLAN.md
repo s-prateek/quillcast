@@ -13,6 +13,7 @@ Phases are sequential. Each phase ends with something that works end-to-end.
 - [x] `.env.example` documenting required environment variables
 - [x] `.gitignore` catches `.env`, `data/`, `__pycache__/`
 
+<<<<<<< HEAD
 ### 1.2 Config files
 - [x] `config/platforms.yaml` (LinkedIn enabled, RSS feeds)
 - [x] `config/topics.yaml` (voice + evergreen topics)
@@ -24,12 +25,37 @@ Phases are sequential. Each phase ends with something that works end-to-end.
 - [ ] Confirm tokens at `data/tokens/linkedin.json`
 
 **Phase 1 done when:** Config files exist, OAuth tokens saved locally.
+=======
+### 1.2 CDK — StorageStack
+- [x] Initialise CDK app (`cdk/app.py` + `cdk/stacks/storage_stack.py` created manually)
+- [x] Define DynamoDB table `quillcast-drafts` (On-Demand billing, `PostID` as PK)
+- [x] Add GSI: `OverallStatus-CreatedAt-index` (PK: `OverallStatus`, SK: `CreatedAt`)
+- [x] Define S3 bucket for config files — CDK generates unique name including account ID
+- [x] Refresh AWS credentials, then `cdk bootstrap` (one-time per account/region)
+- [x] `cdk deploy QuillcastStorageStack` — verify resources appear in AWS console
+
+### 1.3 Config files in S3
+- [x] Write `config/platforms.yaml` (LinkedIn enabled, Facebook + blog disabled)
+- [x] Write `config/topics.yaml` (voice description + 8 evergreen topics)
+- [x] Upload both to S3 after deploy: `aws s3 cp config/ s3://<ConfigBucketName>/config/ --recursive`
+
+### 1.4 LinkedIn OAuth
+- [x] Register app at [LinkedIn Developer Portal](https://developer.linkedin.com/) — add `http://localhost:8080/callback` as redirect URL
+- [x] Request `w_member_social` permission scope (may take a few days for approval)
+- [ ] Enable Amazon Bedrock Claude Haiku model access in your AWS region via the [Bedrock console](https://console.aws.amazon.com/bedrock/)
+- [x] Run OAuth flow: `export LINKEDIN_CLIENT_ID=... LINKEDIN_CLIENT_SECRET=... && python scripts/linkedin_oauth.py`
+- [x] Confirm tokens stored: `aws ssm get-parameter --name /quillcast/linkedin/tokens --with-decryption`
+
+**Phase 1 done when:** DynamoDB table and S3 bucket exist in AWS, config files are uploaded,
+LinkedIn tokens are in SSM and verified, `cdk synth` passes cleanly. ✅ `cdk synth` already passes.
+>>>>>>> origin/main
 
 ---
 
 ## Phase 2 — Content Generation
 *Goal: Running the script picks a topic, calls Claude/Gemini, and writes a local draft.*
 
+<<<<<<< HEAD
 ### 2.1 Shared models & storage
 - [x] `shared/models.py` — `PostRecord`, `PostContent`, `PublishResult`
 - [x] `shared/drafts.py` — `put_record()`, `get_record()`, `list_records()`, `update_target_status()`
@@ -47,6 +73,37 @@ Phases are sequential. Each phase ends with something that works end-to-end.
 - [x] `scripts/run_generate_post.py` — CLI entrypoint
 
 **Phase 2 done when:** `python scripts/run_generate_post.py` creates a JSON draft in `data/drafts/`.
+=======
+### 2.1 Shared models
+- [x] `shared/models.py` — `PostRecord`, `PostContent`, `PublishResult` dataclasses
+- [x] `shared/dynamodb.py` — helpers: `put_record()`, `get_record()`, `update_target_status()`
+- [x] `shared/config.py` — loads `platforms.yaml` and `topics.yaml` from S3
+
+### 2.2 RSS fetcher
+- [x] `lambdas/generate_post/rss.py` — fetch + parse configured RSS feeds using `feedparser`
+- [x] Filter by `min_article_age_hours` / `max_article_age_hours`
+- [x] Return ranked list of `(title, url, summary)` tuples
+
+### 2.3 Bedrock call
+- [x] `lambdas/generate_post/bedrock.py` — build the structured prompt (see `design.md §5`)
+- [x] Invoke `anthropic.claude-haiku-4-5` via `boto3` Bedrock Runtime client
+- [x] Parse JSON response into `ContentVariants` dict
+- [x] Handle malformed JSON responses with a retry (max 2 attempts)
+
+### 2.4 Lambda handler
+- [x] `lambdas/generate_post/handler.py` — wire together: fetch topics → select best → call Bedrock → write DynamoDB
+- [x] `lambdas/generate_post/requirements.txt` (`boto3`, `feedparser`)
+
+### 2.5 CDK — LambdaStack (generation)
+- [x] Define `generate_post` Lambda (Python 3.12, 512 MB, 5 min timeout)
+- [x] IAM role: `bedrock:InvokeModel`, `dynamodb:PutItem`, `s3:GetObject`
+- [ ] `cdk deploy QuillcastLambdaStack`
+- [ ] Invoke manually: `aws lambda invoke --function-name quillcast-generate-post out.json`
+- [ ] Verify record appears in DynamoDB with `OverallStatus: PENDING`
+
+**Phase 2 done when:** A DynamoDB record exists with properly formatted `ContentVariants`
+and `OverallStatus: PENDING`.
+>>>>>>> origin/main
 
 ---
 
