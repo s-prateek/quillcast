@@ -20,6 +20,15 @@ class PublishResult:
 
 
 @dataclass
+class TopicCandidate:
+    id: str
+    title: str
+    hook: str
+    source_url: str
+    source_type: str  # rss | evergreen
+
+
+@dataclass
 class TargetRecord:
     Status: str = "DRAFT"
     EditedContent: str | None = None

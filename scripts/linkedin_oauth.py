@@ -88,7 +88,8 @@ def main():
     auth_url = f"https://www.linkedin.com/oauth/v2/authorization?{auth_params}"
     print("Opening browser for LinkedIn authorization...")
     print(f"If it doesn't open automatically, visit:\n  {auth_url}\n")
-    webbrowser.open(auth_url)
+    if not os.environ.get("QUILLCAST_NO_BROWSER", "").strip():
+        webbrowser.open(auth_url)
 
     print("Waiting for callback on http://localhost:8080/callback ...")
     server = HTTPServer(("localhost", 8080), _CallbackHandler)

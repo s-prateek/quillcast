@@ -190,44 +190,33 @@ Ensure `http://localhost:8080/callback` is registered exactly in your LinkedIn a
 
 ---
 
-## 8. Review UI (Phase 4)
-
-Open the Streamlit app to preview, edit, and publish pending drafts:
+## 8. Review UI
 
 ```bash
 pip install -r ui/requirements.txt
 streamlit run ui/app.py
 ```
 
-- **Sidebar** — lists `PENDING` drafts from `data/drafts/`
-- **Main panel** — topic, source link, platform tabs
-- **LinkedIn tab** — card preview, editable text, character counter
-- **Publish** — posts to LinkedIn and updates the draft JSON
-- **Archive** — skip a platform without publishing
+Opens at http://localhost:8501 (browser auto-open disabled via `.streamlit/config.toml`).
 
-Set `AUTHOR_NAME`, `AUTHOR_HEADLINE`, and optional `AUTHOR_PROFILE_PIC_URL` in `.env` for the LinkedIn preview card.
+### Discover
 
----
+1. Open the **Discover** tab in the sidebar
+2. Click **Fetch trending topics** — reads RSS feeds, then LLM curates ~8 post-worthy cards
+3. Pick a topic and click **Generate draft for this topic**
+4. You are taken to **Review** with the new draft open
 
-## 9. Optional: schedule daily generation
+### Review
 
-Run locally with cron (macOS/Linux):
+- Sidebar lists `PENDING` drafts
+- Edit text, see LinkedIn preview, character counter
+- **Publish** posts to LinkedIn; **Archive** skips
 
-```bash
-crontab -e
-```
-
-Add (8 AM daily, adjust path):
-
-```
-0 8 * * * cd /path/to/quillcast && .venv/bin/python scripts/run_generate_post.py >> /tmp/quillcast.log 2>&1
-```
-
-Make sure `.env` is sourced in the cron job or API keys are exported in the crontab entry.
+Set `AUTHOR_NAME`, `AUTHOR_HEADLINE`, and optional `AUTHOR_PROFILE_PIC_URL` in `.env` for the preview card.
 
 ---
 
-## 10. Directory layout after setup
+## 9. Directory layout after setup
 
 ```
 quillcast/
@@ -242,5 +231,4 @@ quillcast/
 
 ## Next steps
 
-See [docs/PLAN.md](docs/PLAN.md) for the implementation roadmap:
-- **Phase 5** — Cron automation (local)
+See [docs/PLAN.md](docs/PLAN.md) for remaining open-source prep tasks.

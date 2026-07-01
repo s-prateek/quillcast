@@ -27,27 +27,28 @@ A local content pipeline that:
 ### High-Level Flow
 
 ```
-You run scripts/run_generate_post.py  (or cron)
-        │
-        ▼
-shared/generate.py
-  ├── Fetch articles from RSS feeds (shared/rss.py)
-  ├── Load config/topics.yaml + config/platforms.yaml
-  ├── Select best topic for the run
-  ├── Call Claude or Gemini API (shared/llm.py) → structured JSON per platform
-  └── Write PostRecord to data/drafts/<post-id>.json (OverallStatus: PENDING)
+User opens Streamlit UI  →  streamlit run ui/app.py
 
-User opens Streamlit UI locally  →  streamlit run ui/app.py
-  ├── Reads PENDING drafts from data/drafts/
-  ├── Shows per-draft view with a tab per enabled platform
-  ├── Each tab: platform preview + editable text area + char counter
-  └── On "Publish" → calls publishers/linkedin.py directly
+Discover page
+  ├── Click "Fetch trending topics"
+  ├── shared/rss.py fetches articles from configured feeds
+  ├── shared/llm.py curate_topic_candidates()  ← LLM call #1
+  │     ranks RSS + evergreen into post-worthy cards (title + hook)
+  ├── User picks one topic
+  └── Click "Generate draft"
+        ├── shared/llm.py generate_content_variants()  ← LLM call #2
+        └── Writes PostRecord to data/drafts/<post-id>.json (PENDING)
 
-publishers/linkedin.py
-  ├── Loads OAuth tokens from data/tokens/linkedin.json
-  ├── Calls LinkedIn REST API with retry + exponential backoff
-  └── Updates draft JSON: Target.Status → POSTED, stores PlatformPostID
+Review page
+  ├── Lists PENDING drafts from data/drafts/
+  ├── Platform tabs: preview + editable text + char counter
+  └── Publish → publishers/linkedin.py → updates draft JSON (POSTED)
+
+Optional CLI (same backend, auto-picks topic):
+  python scripts/run_generate_post.py
 ```
+
+No cron. No background jobs. You start each session from the UI when you want to post.
 
 ### Cost at Personal Scale
 
@@ -118,44 +119,55 @@ Gitignored. Never committed.
 
 ## 4. Topic Discovery
 
-### A. RSS Feeds (Primary)
+Human-in-the-loop. The UI never auto-publishes or auto-generates without your pick.
 
-Configured in `config/platforms.yaml`. Fetched and filtered by age window.
+### Step 1 — Fetch RSS
 
-```yaml
-rss_feeds:
-  - url: https://hnrss.org/frontpage
-    category: tech
+Configured in `config/platforms.yaml`. Articles are filtered by age window (`rss_filter`).
 
-rss_filter:
-  min_article_age_hours: 1
-  max_article_age_hours: 48
-  max_articles_per_run: 5
+### Step 2 — Curate with LLM (call #1)
+
+`shared/llm.py` → `curate_topic_candidates()` sends article titles/summaries plus evergreen ideas to the model. Returns a JSON list of topic cards:
+
+```json
+{
+  "topics": [
+    {
+      "title": "Why orthogonalization fixes RNN memory",
+      "hook": "Fresh take on a classic ML problem — good for a practitioner audience.",
+      "source_url": "https://example.com/article",
+      "source_type": "rss"
+    }
+  ]
+}
 ```
 
-Newest matching article wins.
+If the LLM fails, Quillcast falls back to raw RSS titles or the evergreen list.
 
-### B. Evergreen Topics (Fallback)
+### Step 3 — User picks a topic
 
-From `config/topics.yaml`. Used when RSS yields nothing.
+Streamlit **Discover** page shows cards with title, hook, and source link.
 
-```yaml
-voice:
-  description: "Direct, opinionated, practical."
-  target_audience: "Software engineers and tech leads"
-  author_name: "Your Name"
+### Step 4 — Generate draft (call #2)
 
-evergreen_topics:
-  - "Lessons from shipping side projects"
-```
+`shared/generate.py` → `generate_post_for_topic()` calls `generate_content_variants()` for the selected topic only.
 
-`topics.yaml` voice is always included in the LLM prompt regardless of topic source.
+### Evergreen fallback
+
+When RSS returns nothing, evergreen topics from `config/topics.yaml` are offered (curated by LLM if available).
 
 ---
 
 ## 5. Content Generation
 
-**One LLM API call per run** requesting structured JSON with all platform variants.
+**Two LLM calls per user-initiated draft** (when using the UI discover flow):
+
+| Call | Function | Purpose |
+|------|----------|---------|
+| #1 | `curate_topic_candidates()` | Rank RSS + evergreen into post-worthy topic cards |
+| #2 | `generate_content_variants()` | Write platform-specific post JSON for the picked topic |
+
+The CLI `scripts/run_generate_post.py` skips call #1 and auto-picks the newest RSS article (or random evergreen).
 
 Prompt structure (see `shared/llm.py`):
 
