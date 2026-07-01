@@ -47,15 +47,12 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
-# ── AWS CDK ───────────────────────────────────────────────────────────────────
-cdk.out/
-.cdk.staging/
-cdk.context.json
+# ── Local data (drafts, OAuth tokens) ─────────────────────────────────────────
+data/
 
-# ── Lambda build artifacts ────────────────────────────────────────────────────
-lambdas/**/dist/
-lambdas/**/.build/
-lambdas/**/__pycache__/
+# ── Legacy CDK artifacts (if any remain locally) ──────────────────────────────
+cdk.out/
+build/
 
 # ── Streamlit ─────────────────────────────────────────────────────────────────
 .streamlit/secrets.toml
@@ -83,3 +80,7 @@ pip-log.txt
 
 # ── Misc ──────────────────────────────────────────────────────────────────────
 .python-version
+
+# ── Local / generated — may contain secrets or invoke output ────────────────
+out.json
+docs/quill.json

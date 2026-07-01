@@ -1,24 +1,24 @@
 # Design Document: Quillcast
 
-> **Status:** In design.
+> **Status:** Local-first architecture. No AWS dependencies.
 
 ---
 
 ## 1. Overview & Goals
 
-A serverless, event-driven application that:
+A local content pipeline that:
 
 - Discovers trending topics daily via RSS feeds and a curated manual list
-- Generates platform-adapted draft posts using Amazon Bedrock (Claude Haiku)
-- Surfaces pending drafts in a **local** Streamlit UI for previewing (platform-accurate card mock-up), editing, and approving posts
+- Generates platform-adapted draft posts using **Claude or Gemini** (direct API)
+- Surfaces pending drafts in a **local** Streamlit UI for previewing, editing, and approving posts
 - Publishes approved content to LinkedIn (and future platforms) via their APIs
 
 **Design Priorities (in order):**
 
-1. **Cost** — Target ~$0/month AWS bill. All services must be free-tier eligible at personal-use volume.
-2. **Low Maintenance** — Config-driven. Adding a topic or a new platform should require no code changes.
+1. **Simplicity** — Runs on your laptop. No cloud account required for core workflow.
+2. **Low Maintenance** — Config-driven. Adding a topic or platform requires no code changes.
 3. **Extensibility** — Clean publisher abstraction. New platforms = one new file.
-4. **Open Source Friendly** — AWS CDK for reproducible infra, local-first UI, no hardcoded credentials anywhere.
+4. **Open Source Friendly** — Local-first, no hardcoded credentials, secrets in `.env` and `data/tokens/`.
 
 ---
 
@@ -27,58 +27,43 @@ A serverless, event-driven application that:
 ### High-Level Flow
 
 ```
-EventBridge Scheduler (daily cron)
+You run scripts/run_generate_post.py  (or cron)
         │
         ▼
-generate_post Lambda
-  ├── Fetch & score articles from RSS feeds
-  ├── Merge with topics.yaml overrides (from S3)
-  ├── Select best topic for the day
-  ├── Invoke Bedrock (Claude Haiku) → structured JSON with a variant per enabled platform
-  └── Write PostRecord to DynamoDB (OverallStatus: PENDING)
+shared/generate.py
+  ├── Fetch articles from RSS feeds (shared/rss.py)
+  ├── Load config/topics.yaml + config/platforms.yaml
+  ├── Select best topic for the run
+  ├── Call Claude or Gemini API (shared/llm.py) → structured JSON per platform
+  └── Write PostRecord to data/drafts/<post-id>.json (OverallStatus: PENDING)
 
 User opens Streamlit UI locally  →  streamlit run ui/app.py
-  ├── Queries DynamoDB GSI for PENDING records
+  ├── Reads PENDING drafts from data/drafts/
   ├── Shows per-draft view with a tab per enabled platform
-  ├── Each tab: platform-accurate post preview + editable text area + char counter
-  └── On "Publish" → calls publish_post Lambda via Function URL (secrets stay server-side)
+  ├── Each tab: platform preview + editable text area + char counter
+  └── On "Publish" → calls publishers/linkedin.py directly
 
-publish_post Lambda
-  ├── Reads PostRecord from DynamoDB
-  ├── Loads OAuth tokens from SSM Parameter Store
-  ├── Selects the correct Publisher class for the platform
-  ├── Calls platform API with retry + exponential backoff
-  └── Updates DynamoDB: Target.Status → POSTED, stores PlatformPostID and PublishedAt
+publishers/linkedin.py
+  ├── Loads OAuth tokens from data/tokens/linkedin.json
+  ├── Calls LinkedIn REST API with retry + exponential backoff
+  └── Updates draft JSON: Target.Status → POSTED, stores PlatformPostID
 ```
 
-### AWS Services & Cost
+### Cost at Personal Scale
 
-| Service | Purpose | Cost at Personal Scale |
-|---|---|---|
-| EventBridge Scheduler | Daily cron trigger | Free |
-| Lambda (×2) | `generate_post`, `publish_post` | Free (1M invocations/month free tier) |
-| DynamoDB On-Demand | Post records + history | Free (25 GB + 25 WCU/RCU free tier) |
-| Bedrock — Claude Haiku | LLM generation | ~$0.01/month (30 posts × ~500 tokens) |
-| S3 | `platforms.yaml`, `topics.yaml`, RSS cache | ~$0 |
-| SSM Parameter Store (Standard) | OAuth tokens per platform | Free |
-| **Total** | | **~$0.01–0.05/month** |
-
-> No App Runner, no Fargate, no Secrets Manager. The Streamlit UI runs locally on demand — it is not hosted.
+| Item | Cost |
+|------|------|
+| Claude Haiku or Gemini Flash | ~$0.01–0.50/month (≈30 posts) |
+| LinkedIn API | Free |
+| Cloud infrastructure | **$0** |
 
 ---
 
 ## 3. Data Model
 
-### DynamoDB Table: `quillcast-drafts`
+### Local Draft Files: `data/drafts/<post-id>.json`
 
-**Primary Key:** `PostID` (String, UUIDv4)
-
-**GSI — `OverallStatus-CreatedAt-index`**
-- Partition key: `OverallStatus` (`PENDING` | `COMPLETE`)
-- Sort key: `CreatedAt`
-- Purpose: lets the Streamlit UI fetch all pending drafts in one query, no full table scan.
-
-**Record Schema:**
+One JSON file per draft. Same schema as the original DynamoDB design:
 
 ```json
 {
@@ -113,29 +98,33 @@ publish_post Lambda
 
 **Target Status lifecycle:** `DRAFT` → `POSTED` | `FAILED` | `ARCHIVED`
 
-**OverallStatus logic (maintained by Lambda on every update):**
+**OverallStatus logic:**
 - `PENDING` — at least one Target has `DRAFT` status
 - `COMPLETE` — all Targets are `POSTED`, `FAILED`, or `ARCHIVED`
 
-`ContentVariants` only contains keys for currently enabled platforms. Enabling a new platform later adds future records but does not backfill old ones.
+### OAuth Tokens: `data/tokens/<platform>.json`
+
+```json
+{
+  "access_token": "...",
+  "refresh_token": "...",
+  "token_expiry": "2026-08-28T12:00:00+00:00"
+}
+```
+
+Gitignored. Never committed.
 
 ---
 
 ## 4. Topic Discovery
 
-Two complementary sources merged before each generation run.
+### A. RSS Feeds (Primary)
 
-### A. RSS Feeds (Primary — auto-discovers trends)
-
-Configured in `config/platforms.yaml`. Lambda fetches, parses, and filters articles by age and relevance score.
+Configured in `config/platforms.yaml`. Fetched and filtered by age window.
 
 ```yaml
 rss_feeds:
   - url: https://hnrss.org/frontpage
-    category: tech
-  - url: https://feeds.feedburner.com/TechCrunch
-    category: tech
-  - url: https://www.theverge.com/rss/index.xml
     category: tech
 
 rss_filter:
@@ -144,33 +133,31 @@ rss_filter:
   max_articles_per_run: 5
 ```
 
-Lambda uses a lightweight Bedrock call (or simple keyword heuristic) to pick the most relevant article from the fetched batch.
+Newest matching article wins.
 
-### B. `topics.yaml` in S3 (Fallback & Evergreen Override)
+### B. Evergreen Topics (Fallback)
 
-Used when RSS yields nothing relevant, or for timeless personal topics. Edit in S3 — no deployment needed.
+From `config/topics.yaml`. Used when RSS yields nothing.
 
 ```yaml
 voice:
-  description: "Direct, opinionated, practical. No fluff."
+  description: "Direct, opinionated, practical."
   target_audience: "Software engineers and tech leads"
   author_name: "Your Name"
 
 evergreen_topics:
   - "Lessons from shipping side projects"
-  - "What nobody tells you about distributed systems"
-  - "My honest take on [recent trend]"
 ```
 
-If both sources have candidates, RSS takes priority. `topics.yaml` is always appended to the Bedrock prompt as author context regardless of which source wins.
+`topics.yaml` voice is always included in the LLM prompt regardless of topic source.
 
 ---
 
-## 5. Content Generation (`generate_post` Lambda)
+## 5. Content Generation
 
-**One Bedrock call per daily run** requesting structured JSON output with all platform variants. Single call keeps costs minimal and keeps variants thematically consistent.
+**One LLM API call per run** requesting structured JSON with all platform variants.
 
-Prompt structure:
+Prompt structure (see `shared/llm.py`):
 
 ```
 System: You are a ghostwriter for {author_name}. Voice: {voice_description}.
@@ -180,22 +167,13 @@ User:   Topic: {selected_topic}
         Source: {source_url}
 
         Generate social content as valid JSON for these platforms: {enabled_platforms}
-
-        {
-          "linkedin": "...",       // max 3000 chars, professional, 3 paragraphs, ends with a question or CTA
-          "facebook": "...",       // max 500 chars, casual, conversational
-          "blog": {
-            "title": "...",
-            "body": "...",         // full markdown, 600–1200 words
-            "tags": ["tag1"]
-          }
-        }
-
-        Only include keys for: {enabled_platforms}
+        ...
 ```
 
-On success: write record to DynamoDB.
-On failure: write to CloudWatch Logs. EventBridge DLQ captures the failed invocation for manual retry.
+Provider selection via `LLM_PROVIDER` env var (`claude` or `gemini`).
+
+On success: write `data/drafts/<post-id>.json`.  
+On failure: raise exception; caller logs to stderr.
 
 ---
 
@@ -205,74 +183,19 @@ On failure: write to CloudWatch Logs. EventBridge DLQ captures the failed invoca
 streamlit run ui/app.py
 ```
 
-The UI is **never deployed**. It runs on your laptop when you open it to review drafts.
-
-### Layout
-
-```
-┌──────────────────────────────────────────────────────┐
-│  📋  ContentPilot — 2 drafts pending                 │
-│  ──────────────────────────────────────────────────  │
-│  Sidebar                    │  Main panel            │
-│  ─────────────              │  ───────────────────── │
-│  ▶ AI agents · Jun 28       │  Topic: AI agents...   │
-│    LinkedIn ✏️  Blog ─      │  Source: TechCrunch    │
-│  ─ SRE lessons · Jun 27     │                        │
-│    LinkedIn ✅              │  [ LinkedIn ] [ Blog ] │
-│                             │                        │
-│                             │  ┌─ LinkedIn Preview ─┐│
-│                             │  │ 👤 Name · 1st      ││
-│                             │  │    Software Eng.   ││
-│                             │  │                    ││
-│                             │  │  The enterprise... ││
-│                             │  │  ...see more       ││
-│                             │  │ 👍 💬 🔁           ││
-│                             │  └────────────────────┘│
-│                             │                        │
-│                             │  ✏️ Edit               │
-│                             │  ┌──────────────────┐  │
-│                             │  │ The enterprise.. │  │
-│                             │  └──────────────────┘  │
-│                             │  847 / 3000  ✅        │
-│                             │                        │
-│                             │  [✅ Publish] [⏭ Skip] │
-│                             │  [🗓 Schedule] [🗑]    │
-└──────────────────────────────────────────────────────┘
-```
-
-### Platform Preview Components
-
-Each `Publisher` class implements a `render_preview(text, profile_config) -> str` method returning HTML. Streamlit injects this via `st.components.v1.html()`. The UI has zero platform-specific logic — adding a new platform's preview is done entirely inside its Publisher file.
-
-Platform constraints (character limits, image support, etc.) are also sourced from `publisher.get_constraints()` and displayed in the UI dynamically.
+Never deployed. Runs on your laptop when you want to review drafts.
 
 ### Publish Action
 
-"Publish" calls the `publish_post` Lambda via its **Function URL** (HTTPS, IAM-authenticated). The Streamlit app never holds OAuth tokens — they live exclusively in SSM, accessed only by the Lambda.
+"Publish" calls `publishers/linkedin.py` directly from the UI process. OAuth tokens are read from `data/tokens/linkedin.json` at publish time.
 
 ---
 
 ## 7. Publisher System
 
-### Interface (`publishers/base.py`)
+### Interface (`publishers/base.py` — planned)
 
 ```python
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-
-@dataclass
-class PostContent:
-    text: str
-    platform: str
-    media_urls: list[str] = field(default_factory=list)
-    metadata: dict = field(default_factory=dict)  # blog title/tags, etc.
-
-@dataclass
-class PublishResult:
-    success: bool
-    platform_post_id: str | None = None
-    error: str | None = None
-
 class Publisher(ABC):
     @abstractmethod
     def publish(self, content: PostContent) -> PublishResult: ...
@@ -282,163 +205,113 @@ class Publisher(ABC):
 
     @abstractmethod
     def get_constraints(self) -> dict: ...
-    # e.g. {"char_limit": 3000, "supports_images": True, "supports_links": True}
 
     @abstractmethod
     def render_preview(self, text: str, profile: dict) -> str: ...
-    # Returns HTML injected into Streamlit via st.components.v1.html()
 ```
 
-### Platform Registry
-
-Publishers are discovered at runtime from `config/platforms.yaml`. The Lambda dispatcher does:
-
-```python
-publisher = PublisherRegistry.get(platform)  # returns the right Publisher subclass
-result = publisher.publish(content)
-```
-
-### Adding a New Platform (zero core changes)
+### Adding a New Platform
 
 1. Create `publishers/<platform>.py` implementing `Publisher`
-2. Set `enabled: true` in `config/platforms.yaml`
-3. Store credentials in SSM
-4. Done — the UI tab appears automatically on next `streamlit run`
+2. Set `enabled: true` in `config/platforms.yaml` with a `token_file`
+3. Store OAuth tokens at that path
+4. UI tab appears automatically
 
 ---
 
-## 8. Platform Configuration (`config/platforms.yaml`)
+## 8. Platform Configuration
 
 ```yaml
 platforms:
   linkedin:
     enabled: true
-    ssm_token_key: /quillcast/linkedin/tokens   # stores access_token, refresh_token, token_expiry
+    token_file: data/tokens/linkedin.json
 
   facebook:
-    enabled: false      # ← flip this when ready, no code changes needed
-    ssm_token_key: /quillcast/facebook/tokens
+    enabled: false
+    token_file: data/tokens/facebook.json
 
   blog:
     enabled: false
-    type: ghost         # ghost | wordpress | hugo_github
-    ssm_token_key: /quillcast/blog/tokens
+    type: ghost
+    token_file: data/tokens/blog.json
 ```
 
 ---
 
 ## 9. LinkedIn API Integration
 
-- **Auth:** OAuth 2.0 three-legged flow. Store `access_token`, `refresh_token`, and `token_expiry` (ISO 8601) together as a JSON string in a single SSM Standard Parameter.
-- **Token Refresh:** Before every publish call, check `token_expiry`. If within 7 days, refresh proactively and update SSM. LinkedIn access tokens expire in 60 days; refresh tokens in 365 days.
+- **Auth:** OAuth 2.0 via `scripts/linkedin_oauth.py` → saves to `data/tokens/linkedin.json`
+- **Token Refresh:** Before publish, refresh if expiry within 7 days; update token file
 - **Endpoint:** `POST /rest/posts`
-- **Required Headers:**
-  - `X-Restli-Protocol-Version: 2.0.0`
-  - `LinkedIn-Version: 202606` (update to latest stable each year)
-  - `Authorization: Bearer {access_token}`
-- **Rate Limiting:** Exponential backoff on `429` responses — max 3 retries, base delay 2s, jitter added.
-- **Required Permission:** `w_member_social` (request during Developer App registration)
+- **Required Permission:** `w_member_social`
 
 ---
 
-## 10. Infrastructure (AWS CDK — Python)
-
-Three stacks, deployed together via `cdk deploy --all`:
-
-| Stack | Resources |
-|---|---|
-| `StorageStack` | DynamoDB table + GSI; S3 bucket for config files |
-| `LambdaStack` | `generate_post` Lambda; `publish_post` Lambda + Function URL; IAM roles |
-| `SchedulerStack` | EventBridge Scheduler daily cron; Lambda invoke permission; DLQ for failed invocations |
-
-**IAM — least privilege:**
-
-| Lambda | Permissions |
-|---|---|
-| `generate_post` | `bedrock:InvokeModel`, `dynamodb:PutItem`, `s3:GetObject` (config bucket) |
-| `publish_post` | `dynamodb:GetItem`, `dynamodb:UpdateItem`, `ssm:GetParameter` (platform tokens), `ssm:PutParameter` (token refresh) |
-
----
-
-## 11. Project Structure
+## 10. Project Structure
 
 ```
 quillcast/
-├── cdk/
-│   ├── app.py
-│   └── stacks/
-│       ├── storage_stack.py
-│       ├── lambda_stack.py
-│       └── scheduler_stack.py
-│
-├── lambdas/
-│   ├── generate_post/
-│   │   ├── handler.py
-│   │   └── requirements.txt
-│   └── publish_post/
-│       ├── handler.py
-│       └── requirements.txt
-│
-├── publishers/
-│   ├── base.py              # Abstract Publisher interface
-│   ├── registry.py          # Maps platform name → Publisher class
-│   ├── linkedin.py
-│   ├── facebook.py          # Stub — enable via platforms.yaml
-│   └── blog/
-│       ├── ghost.py         # Stub
-│       └── wordpress.py     # Stub
-│
-├── ui/
-│   ├── app.py               # Streamlit entrypoint
-│   ├── components/
-│   │   └── platform_tab.py  # Renders preview + edit + publish per platform
-│   └── requirements.txt
-│
 ├── shared/
-│   ├── models.py            # PostContent, PublishResult, PostRecord dataclasses
-│   ├── dynamodb.py          # DynamoDB read/write helpers
-│   └── config.py            # Loads platforms.yaml + topics.yaml from S3
+│   ├── generate.py          # Orchestration: RSS → LLM → save
+│   ├── llm.py               # Claude / Gemini client
+│   ├── rss.py               # RSS fetcher
+│   ├── drafts.py            # Local JSON storage
+│   ├── config.py            # YAML loader
+│   └── models.py            # Dataclasses
+│
+├── publishers/              # Platform integrations
+├── ui/                      # Streamlit app
 │
 ├── config/
-│   ├── platforms.yaml       # Platform enable/disable + SSM keys
-│   └── topics.yaml          # Author voice + evergreen topics
+│   ├── platforms.yaml
+│   └── topics.yaml
 │
+├── data/                    # gitignored
+│   ├── drafts/
+│   └── tokens/
+│
+├── scripts/
+│   ├── run_generate_post.py
+│   └── linkedin_oauth.py
+│
+├── docs/
 ├── tests/
-├── .env.example             # Documents all required env vars, no real values
-├── pyproject.toml
-└── README.md
+├── .env.example
+└── requirements.txt
 ```
 
 ---
 
-## 12. Implementation Phases
+## 11. Implementation Phases
 
-| Phase | Tasks |
-|---|---|
-| **1 — Foundation** | Finalize project name; CDK `StorageStack` (DynamoDB + S3); upload `platforms.yaml` + `topics.yaml` to S3; LinkedIn Developer App registration + OAuth flow; store tokens in SSM |
-| **2 — Generation** | `shared/models.py` dataclasses; `shared/config.py` S3 loader; `generate_post` Lambda (RSS fetch → topic selection → Bedrock call → DynamoDB write); CDK `LambdaStack` |
-| **3 — Publisher** | `publishers/base.py` interface + `registry.py`; `publishers/linkedin.py` with OAuth refresh + retry; `publish_post` Lambda + Function URL |
-| **4 — UI** | Streamlit app: sidebar draft list, platform tabs, LinkedIn preview component, edit + char counter + publish flow |
-| **5 — Automation** | CDK `SchedulerStack` (EventBridge daily cron + DLQ); end-to-end test run; AWS Budget alert at $5/month |
-| **6 — Open Source Prep** | README setup guide; `.env.example`; stub publishers for Facebook + blog; `CONTRIBUTING.md` |
+See [PLAN.md](PLAN.md).
+
+| Phase | Focus |
+|-------|-------|
+| 1 | Config + LinkedIn OAuth |
+| 2 | Content generation (done) |
+| 3 | LinkedIn publisher |
+| 4 | Streamlit UI |
+| 5 | Cron automation |
+| 6 | Open source polish |
 
 ---
 
-## 13. Risks & Mitigation
+## 12. Risks & Mitigation
 
 | Risk | Mitigation |
-|---|---|
-| LinkedIn API changes | All API logic isolated in `publishers/linkedin.py`. Core Lambda never touches LinkedIn directly. |
-| OAuth token expiry | Proactive refresh 7 days before expiry. `token_expiry` stored in SSM alongside token. |
-| RSS noise / off-topic content | Age filters + relevance scoring in `generate_post`. Manual `topics.yaml` always available as override. |
-| Hallucinations / generic posts | Human-in-the-loop is mandatory. No post goes out without UI preview and explicit approval. |
-| Runaway Lambda costs | AWS Budget alert at $5/month. DLQ on EventBridge → Lambda captures failures without infinite retry loops. |
-| Open-source credential leaks | `.env.example` with no real values; all secrets in SSM; no hardcoded credentials anywhere in codebase. |
+|------|------------|
+| LinkedIn API changes | Isolated in `publishers/linkedin.py` |
+| OAuth token expiry | Proactive refresh; expiry stored in token file |
+| RSS noise | Age filters + evergreen fallback |
+| Hallucinations | Human-in-the-loop mandatory |
+| Credential leaks | `.env` and `data/` gitignored; no secrets in code |
+| LLM API costs | Pay-as-you-go; ~pennies per month at personal volume |
 
 ---
 
-## 14. Open Questions
+## 13. Open Questions
 
-- [ ] **Blog platform** — Ghost, WordPress, or Hugo + GitHub Pages? Affects Phase 6 stub implementation
-- [ ] **Author profile config** — name, headline, profile picture URL needed for the Streamlit LinkedIn preview mock-up (not sent to LinkedIn, display only)
-- [ ] **Scheduling** — the UI includes a "Schedule" button and LinkedIn supports `scheduledPublishTime`. Include in Phase 3 or defer to later?
+- [ ] **Blog platform** — Ghost, WordPress, or Hugo + GitHub Pages?
+- [ ] **Scheduling** — local poller vs LinkedIn native `scheduledPublishTime`?
