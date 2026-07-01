@@ -16,7 +16,7 @@ Quillcast runs entirely on your machine. It picks a topic from RSS feeds or your
 
 No AWS. No Lambda. No Bedrock. No Marketplace billing.
 
-> **Status:** Feature-complete for v1 — discover, draft, review, and publish locally. See [docs/PLAN.md](docs/PLAN.md).
+> **Status:** Feature-complete for v1 — discover, draft, review, and publish locally.
 
 **Setup guide:** [docs/SETUP.md](docs/SETUP.md)
 
@@ -219,8 +219,7 @@ quillcast/
 │
 ├── docs/
 │   ├── SETUP.md
-│   ├── design.md
-│   └── PLAN.md
+│   └── design.md
 │
 ├── tests/
 ├── CONTRIBUTING.md

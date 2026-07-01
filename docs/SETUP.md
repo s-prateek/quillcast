@@ -231,4 +231,4 @@ quillcast/
 
 ## Next steps
 
-See [docs/PLAN.md](docs/PLAN.md) for remaining open-source prep tasks.
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for dev setup, tests, and how to add a new platform publisher.
