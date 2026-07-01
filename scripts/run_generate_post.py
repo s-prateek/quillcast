@@ -7,10 +7,13 @@ import sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
+from shared.env import load_project_env  # noqa: E402
 from shared.generate import generate_post  # noqa: E402
 
 
 def main() -> None:
+    load_project_env()
+
     provider = os.environ.get("LLM_PROVIDER", "claude").strip().lower()
     if provider == "claude" and not os.environ.get("ANTHROPIC_API_KEY"):
         print("Set ANTHROPIC_API_KEY (or LLM_PROVIDER=gemini with GEMINI_API_KEY).", file=sys.stderr)

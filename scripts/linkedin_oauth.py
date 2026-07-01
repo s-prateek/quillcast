@@ -12,12 +12,20 @@ Usage:
 import json
 import os
 import secrets
+import sys
 import urllib.parse
 import urllib.request
 import webbrowser
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from shared.env import load_project_env
+
+load_project_env()
 
 REDIRECT_URI = "http://localhost:8080/callback"
 SCOPES = ["openid", "profile", "w_member_social"]

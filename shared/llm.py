@@ -10,7 +10,22 @@ from typing import Any
 MAX_ATTEMPTS = 2
 
 DEFAULT_CLAUDE_MODEL = "claude-3-5-haiku-latest"
-DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+
+# Google 2.5 "-latest" aliases often 404 on the REST API; use stable base names.
+_GEMINI_MODEL_ALIASES = {
+    "gemini-2.5-flash-latest": "gemini-2.5-flash",
+    "gemini-2.5-pro-latest": "gemini-2.5-pro",
+    "gemini-flash-latest": "gemini-2.5-flash",
+    "gemini-pro-latest": "gemini-2.5-pro",
+}
+
+
+def _normalize_gemini_model(model: str) -> str:
+    normalized = _GEMINI_MODEL_ALIASES.get(model, model)
+    if normalized.endswith("-latest"):
+        normalized = normalized[: -len("-latest")]
+    return normalized
 
 
 def _provider() -> str:
@@ -22,9 +37,13 @@ def _provider() -> str:
 
 def _model_id() -> str:
     override = os.environ.get("LLM_MODEL", "").strip()
+    if _provider() == "gemini":
+        if override:
+            return _normalize_gemini_model(override)
+        return DEFAULT_GEMINI_MODEL
     if override:
         return override
-    return DEFAULT_CLAUDE_MODEL if _provider() == "claude" else DEFAULT_GEMINI_MODEL
+    return DEFAULT_CLAUDE_MODEL
 
 
 def build_prompt(

@@ -108,7 +108,7 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Add ANTHROPIC_API_KEY or GEMINI_API_KEY to .env
+# Edit .env — keys are loaded automatically when you run scripts
 
 python scripts/run_generate_post.py
 ls data/drafts/

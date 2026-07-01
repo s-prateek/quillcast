@@ -54,19 +54,19 @@ Phases are sequential. Each phase ends with something that works end-to-end.
 *Goal: Publishing a draft posts the LinkedIn variant and updates the local record.*
 
 ### 3.1 Publisher abstraction
-- [ ] `publishers/base.py` — `Publisher` ABC
-- [ ] `publishers/registry.py` — platform name → Publisher class
+- [x] `publishers/base.py` — `Publisher` ABC
+- [x] `publishers/registry.py` — platform name → Publisher class
 
 ### 3.2 LinkedIn publisher
-- [ ] `publishers/linkedin.py`
-  - [ ] Load tokens from `token_file` in `platforms.yaml`
-  - [ ] Proactive token refresh if expiry within 7 days
-  - [ ] `POST /rest/posts` with correct LinkedIn headers
-  - [ ] Exponential backoff on 429
-  - [ ] `render_preview()` for Streamlit
+- [x] `publishers/linkedin.py`
+  - [x] Load tokens from `token_file` in `platforms.yaml`
+  - [x] Proactive token refresh if expiry within 7 days
+  - [x] `POST /rest/posts` with correct LinkedIn headers
+  - [x] Exponential backoff on 429
+  - [x] `render_preview()` for Streamlit
 
 ### 3.3 Publish script
-- [ ] `scripts/publish_post.py` — load draft, call publisher, update `data/drafts/`
+- [x] `scripts/publish_post.py` — load draft, call publisher, update `data/drafts/`
 
 **Phase 3 done when:** A post goes live on LinkedIn and the draft shows `Status: POSTED`.
 

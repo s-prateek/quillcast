@@ -114,11 +114,58 @@ ls -la data/tokens/linkedin.json
 
 ---
 
-## 6. Troubleshooting
+## 6. Publish to LinkedIn (Phase 3)
+
+### Prerequisites
+
+1. LinkedIn app with `w_member_social` scope approved
+2. OAuth tokens saved locally
+
+```bash
+python scripts/linkedin_oauth.py
+ls data/tokens/linkedin.json
+```
+
+### Dry run (no post)
+
+```bash
+python scripts/publish_post.py \
+  --post-id <your-draft-uuid> \
+  --platform linkedin \
+  --dry-run
+```
+
+### Publish for real
+
+```bash
+python scripts/publish_post.py \
+  --post-id <your-draft-uuid> \
+  --platform linkedin
+```
+
+On success the draft JSON updates to `Status: POSTED` with a `PlatformPostID`.
+
+Optional: override text before posting:
+
+```bash
+python scripts/publish_post.py --post-id <uuid> --text "My edited post..."
+```
+
+---
+
+## 7. Troubleshooting
 
 ### `ANTHROPIC_API_KEY is not set`
 
-Copy `.env.example` to `.env` and add your key. Load it before running:
+Copy `.env.example` to `.env` and add your key. Scripts load `.env` automatically from the project root.
+
+```bash
+cp .env.example .env
+# Edit .env, then:
+python scripts/run_generate_post.py
+```
+
+Or export manually:
 
 ```bash
 set -a && source .env && set +a
