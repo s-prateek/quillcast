@@ -23,7 +23,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from shared.env import load_project_env
+from shared.env import load_project_env  # noqa: E402
 
 load_project_env()
 

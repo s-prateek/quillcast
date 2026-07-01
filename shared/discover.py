@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
 
 from shared.config import load_platforms_config, load_topics_config
 from shared.llm import curate_topic_candidates

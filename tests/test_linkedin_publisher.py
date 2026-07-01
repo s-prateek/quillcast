@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from publishers.linkedin import _ensure_fresh_tokens, _parse_expiry
+from publishers.linkedin import _ensure_fresh_tokens
 
 
 def test_ensure_fresh_tokens_skips_when_expiry_far_out(tmp_path):

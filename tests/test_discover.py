@@ -1,8 +1,8 @@
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from shared.discover import discover_topics
 from shared.rss import Article
-from datetime import datetime, timezone
 
 
 @patch("shared.discover.curate_topic_candidates")
