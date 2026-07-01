@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
-from rss import fetch_articles
+from shared.rss import fetch_articles
 
 
 def _entry(title: str, link: str, published_at: datetime) -> dict:
@@ -13,7 +13,7 @@ def _entry(title: str, link: str, published_at: datetime) -> dict:
     }
 
 
-@patch("rss.feedparser.parse")
+@patch("shared.rss.feedparser.parse")
 def test_fetch_articles_filters_by_age_and_sorts_newest_first(mock_parse):
     now = datetime.now(timezone.utc)
     mock_parse.return_value.entries = [

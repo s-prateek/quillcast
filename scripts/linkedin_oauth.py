@@ -12,12 +12,20 @@ Usage:
 import json
 import os
 import secrets
+import sys
 import urllib.parse
 import urllib.request
 import webbrowser
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from shared.env import load_project_env  # noqa: E402
+
+load_project_env()
 
 REDIRECT_URI = "http://localhost:8080/callback"
 SCOPES = ["openid", "profile", "w_member_social"]
@@ -80,7 +88,8 @@ def main():
     auth_url = f"https://www.linkedin.com/oauth/v2/authorization?{auth_params}"
     print("Opening browser for LinkedIn authorization...")
     print(f"If it doesn't open automatically, visit:\n  {auth_url}\n")
-    webbrowser.open(auth_url)
+    if not os.environ.get("QUILLCAST_NO_BROWSER", "").strip():
+        webbrowser.open(auth_url)
 
     print("Waiting for callback on http://localhost:8080/callback ...")
     server = HTTPServer(("localhost", 8080), _CallbackHandler)

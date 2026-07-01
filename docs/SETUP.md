@@ -114,11 +114,58 @@ ls -la data/tokens/linkedin.json
 
 ---
 
-## 6. Troubleshooting
+## 6. Publish to LinkedIn (Phase 3)
+
+### Prerequisites
+
+1. LinkedIn app with `w_member_social` scope approved
+2. OAuth tokens saved locally
+
+```bash
+python scripts/linkedin_oauth.py
+ls data/tokens/linkedin.json
+```
+
+### Dry run (no post)
+
+```bash
+python scripts/publish_post.py \
+  --post-id <your-draft-uuid> \
+  --platform linkedin \
+  --dry-run
+```
+
+### Publish for real
+
+```bash
+python scripts/publish_post.py \
+  --post-id <your-draft-uuid> \
+  --platform linkedin
+```
+
+On success the draft JSON updates to `Status: POSTED` with a `PlatformPostID`.
+
+Optional: override text before posting:
+
+```bash
+python scripts/publish_post.py --post-id <uuid> --text "My edited post..."
+```
+
+---
+
+## 7. Troubleshooting
 
 ### `ANTHROPIC_API_KEY is not set`
 
-Copy `.env.example` to `.env` and add your key. Load it before running:
+Copy `.env.example` to `.env` and add your key. Scripts load `.env` automatically from the project root.
+
+```bash
+cp .env.example .env
+# Edit .env, then:
+python scripts/run_generate_post.py
+```
+
+Or export manually:
 
 ```bash
 set -a && source .env && set +a
@@ -143,25 +190,33 @@ Ensure `http://localhost:8080/callback` is registered exactly in your LinkedIn a
 
 ---
 
-## 7. Optional: schedule daily generation
-
-Run locally with cron (macOS/Linux):
+## 8. Review UI
 
 ```bash
-crontab -e
+pip install -r ui/requirements.txt
+streamlit run ui/app.py
 ```
 
-Add (8 AM daily, adjust path):
+Opens at http://localhost:8501 (browser auto-open disabled via `.streamlit/config.toml`).
 
-```
-0 8 * * * cd /path/to/quillcast && .venv/bin/python scripts/run_generate_post.py >> /tmp/quillcast.log 2>&1
-```
+### Discover
 
-Make sure `.env` is sourced in the cron job or API keys are exported in the crontab entry.
+1. Open the **Discover** tab in the sidebar
+2. Click **Fetch trending topics** — reads RSS feeds, then LLM curates ~8 post-worthy cards
+3. Pick a topic and click **Generate draft for this topic**
+4. You are taken to **Review** with the new draft open
+
+### Review
+
+- Sidebar lists `PENDING` drafts
+- Edit text, see LinkedIn preview, character counter
+- **Publish** posts to LinkedIn; **Archive** skips
+
+Set `AUTHOR_NAME`, `AUTHOR_HEADLINE`, and optional `AUTHOR_PROFILE_PIC_URL` in `.env` for the preview card.
 
 ---
 
-## 8. Directory layout after setup
+## 9. Directory layout after setup
 
 ```
 quillcast/
@@ -176,7 +231,4 @@ quillcast/
 
 ## Next steps
 
-See [docs/PLAN.md](docs/PLAN.md) for the implementation roadmap:
-- **Phase 3** — LinkedIn publisher
-- **Phase 4** — Streamlit review UI
-- **Phase 5** — Cron automation (local)
+See [docs/PLAN.md](docs/PLAN.md) for remaining open-source prep tasks.

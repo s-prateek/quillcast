@@ -36,14 +36,19 @@ def _select_topic(
     return topic, "", "evergreen"
 
 
-def generate_post() -> dict[str, Any]:
+def generate_post_for_topic(
+    *,
+    topic: str,
+    source_url: str = "",
+    source_type: str = "rss",
+) -> dict[str, Any]:
+    """LLM call #2 — generate platform variants for a user-selected topic."""
     platforms_config = load_platforms_config()
     topics_config = load_topics_config()
     platforms = enabled_platforms(platforms_config)
     if not platforms:
         raise RuntimeError("No platforms are enabled in config/platforms.yaml")
 
-    topic, source_url, source_type = _select_topic(platforms_config, topics_config)
     voice = topics_config.get("voice", {})
     content_variants = generate_content_variants(
         topic=topic,
@@ -73,3 +78,15 @@ def generate_post() -> dict[str, Any]:
         "source_type": record.SourceType,
         "platforms": platforms,
     }
+
+
+def generate_post() -> dict[str, Any]:
+    """CLI convenience — auto-picks the newest RSS article or a random evergreen topic."""
+    platforms_config = load_platforms_config()
+    topics_config = load_topics_config()
+    topic, source_url, source_type = _select_topic(platforms_config, topics_config)
+    return generate_post_for_topic(
+        topic=topic,
+        source_url=source_url,
+        source_type=source_type,
+    )

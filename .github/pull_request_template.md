@@ -8,7 +8,6 @@
 - [ ] New feature
 - [ ] Refactor / cleanup
 - [ ] Documentation
-- [ ] Infrastructure (CDK / AWS)
 - [ ] Other:
 
 ## Related

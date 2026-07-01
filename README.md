@@ -16,7 +16,7 @@ Quillcast runs entirely on your machine. It picks a topic from RSS feeds or your
 
 No AWS. No Lambda. No Bedrock. No Marketplace billing.
 
-> **Status:** Active development — Phase 2 (content generation) works locally. See [docs/PLAN.md](docs/PLAN.md).
+> **Status:** Feature-complete for v1 — discover, draft, review, and publish locally. See [docs/PLAN.md](docs/PLAN.md).
 
 **Setup guide:** [docs/SETUP.md](docs/SETUP.md)
 
@@ -53,27 +53,25 @@ No AWS. No Lambda. No Bedrock. No Marketplace billing.
 
 ```mermaid
 graph TD
-    A[scripts/run_generate_post.py] --> B[shared/generate.py]
-    C[config/*.yaml] --> B
-    D[RSS feeds] --> B
-    B --> E[Claude or Gemini API]
-    E --> B
-    B --> F[data/drafts/*.json]
+    A[Streamlit UI] --> B[Discover page]
+    B --> C[RSS feeds]
+    C --> D[LLM call #1: curate topics]
+    D --> B
+    B -->|user picks topic| E[LLM call #2: generate draft]
+    E --> F[data/drafts/*.json]
 
-    G[Streamlit UI - Phase 4] --> F
+    A --> G[Review page]
+    G --> F
     G --> H[publishers/linkedin.py]
     H --> I[LinkedIn API]
-    J[data/tokens/linkedin.json] --> H
 ```
 
 ### Flow
 
-1. You run `python scripts/run_generate_post.py` (or a future cron on your machine)
-2. Quillcast fetches RSS articles, falls back to evergreen topics from `config/topics.yaml`
-3. One LLM API call generates JSON content variants for all enabled platforms
-4. The draft is saved to `data/drafts/<post-id>.json` with `OverallStatus: PENDING`
-5. You open `streamlit run ui/app.py` — review, edit, and publish (Phase 3–4)
-6. The LinkedIn publisher reads tokens from `data/tokens/linkedin.json` and posts on your approval
+1. Open **Discover** → fetch RSS → LLM curates today's topic cards
+2. Pick a topic → **Generate draft** (second LLM call)
+3. Switch to **Review** → edit, preview, **Publish** to LinkedIn
+4. Optional CLI: `python scripts/run_generate_post.py` auto-picks a topic without the UI
 
 ---
 
@@ -108,11 +106,21 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Add ANTHROPIC_API_KEY or GEMINI_API_KEY to .env
+# Edit .env — keys are loaded automatically when you run scripts
 
 python scripts/run_generate_post.py
 ls data/drafts/
 ```
+
+### Review & publish (UI)
+
+```bash
+pip install -r ui/requirements.txt
+streamlit run ui/app.py
+```
+
+1. **Discover** — fetch RSS, pick a curated topic, generate draft
+2. **Review** — edit, preview, publish to LinkedIn
 
 **Claude (default):** [console.anthropic.com](https://console.anthropic.com/)  
 **Gemini:** set `LLM_PROVIDER=gemini` and `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey)
@@ -180,7 +188,9 @@ The Streamlit UI will show a new tab for the platform automatically. See `docs/d
 ```
 quillcast/
 ├── shared/
-│   ├── generate.py             # RSS → topic → LLM → save draft
+│   ├── generate.py             # generate_post_for_topic()
+│   ├── discover.py             # RSS → LLM topic curation
+│   ├── publish.py              # publish/save/archive helpers
 │   ├── llm.py                  # Claude / Gemini API client
 │   ├── rss.py                  # RSS feed fetcher
 │   ├── drafts.py               # Local JSON draft storage
@@ -188,7 +198,11 @@ quillcast/
 │   └── models.py               # PostRecord, PublishResult, etc.
 │
 ├── publishers/                 # Platform API integrations (Phase 3)
-├── ui/                         # Streamlit review UI (Phase 4)
+├── ui/
+│   ├── app.py                  # Discover + Review navigation
+│   └── components/
+│       ├── discover.py
+│       └── platform_tab.py
 │
 ├── config/
 │   ├── platforms.yaml
@@ -200,6 +214,7 @@ quillcast/
 │
 ├── scripts/
 │   ├── run_generate_post.py
+│   ├── publish_post.py
 │   └── linkedin_oauth.py
 │
 ├── docs/
@@ -208,6 +223,7 @@ quillcast/
 │   └── PLAN.md
 │
 ├── tests/
+├── CONTRIBUTING.md
 ├── .env.example
 ├── requirements.txt
 └── requirements-dev.txt
@@ -217,14 +233,7 @@ quillcast/
 
 ## Contributing
 
-Contributions welcome, especially new platform publishers. See [docs/PLAN.md](docs/PLAN.md).
-
-1. Fork and branch: `git checkout -b feat/facebook-publisher`
-2. Make changes and add tests
-3. `ruff check .` and `pytest`
-4. Open a pull request
-
-Do not commit `.env`, `data/`, or any real credentials.
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for dev setup, tests, and how to add a new platform publisher.
 
 ---
 
