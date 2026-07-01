@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """
-LinkedIn OAuth helper — run this locally to obtain access_token and refresh_token
-and store them in AWS SSM Parameter Store.
+LinkedIn OAuth helper — run locally to obtain access_token and refresh_token.
 
 Prerequisites:
-    pip install boto3
     export LINKEDIN_CLIENT_ID=...
     export LINKEDIN_CLIENT_SECRET=...
-    export AWS_REGION=us-east-1  (or your region)
 
 Usage:
     python scripts/linkedin_oauth.py
@@ -20,11 +17,11 @@ import urllib.request
 import webbrowser
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
-
-import boto3
+from pathlib import Path
 
 REDIRECT_URI = "http://localhost:8080/callback"
 SCOPES = ["openid", "profile", "w_member_social"]
+DEFAULT_TOKEN_PATH = Path(__file__).resolve().parent.parent / "data" / "tokens" / "linkedin.json"
 
 _captured: dict = {}
 
@@ -52,23 +49,27 @@ class _CallbackHandler(BaseHTTPRequestHandler):
             self.wfile.write(f"<html><body><h1>Error: {error}</h1></body></html>".encode())
 
     def log_message(self, format, *args):
-        pass  # suppress request logs
+        pass
+
+
+def _token_path() -> Path:
+    configured = os.environ.get("LINKEDIN_TOKEN_FILE", "").strip()
+    if configured:
+        return Path(configured)
+    return DEFAULT_TOKEN_PATH
 
 
 def main():
     client_id = os.environ.get("LINKEDIN_CLIENT_ID")
     client_secret = os.environ.get("LINKEDIN_CLIENT_SECRET")
-    region = os.environ.get("AWS_REGION", "us-east-1")
 
     if not client_id or not client_secret:
         raise SystemExit(
             "ERROR: Set LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET environment variables."
         )
 
-    # CSRF protection via state parameter
     state = secrets.token_urlsafe(32)
 
-    # Step 1: Open browser for authorization
     auth_params = urllib.parse.urlencode({
         "response_type": "code",
         "client_id": client_id,
@@ -81,7 +82,6 @@ def main():
     print(f"If it doesn't open automatically, visit:\n  {auth_url}\n")
     webbrowser.open(auth_url)
 
-    # Step 2: Capture the callback
     print("Waiting for callback on http://localhost:8080/callback ...")
     server = HTTPServer(("localhost", 8080), _CallbackHandler)
     server.handle_request()
@@ -92,11 +92,9 @@ def main():
     if not _captured.get("code"):
         raise SystemExit("No authorization code received.")
 
-    # Validate CSRF state
     if _captured.get("state") != state:
         raise SystemExit("ERROR: State mismatch — possible CSRF attack. Aborting.")
 
-    # Step 3: Exchange auth code for tokens
     token_params = urllib.parse.urlencode({
         "grant_type": "authorization_code",
         "code": _captured["code"],
@@ -115,27 +113,22 @@ def main():
 
     access_token = token_response["access_token"]
     refresh_token = token_response.get("refresh_token", "")
-    expires_in = token_response.get("expires_in", 5184000)  # default: 60 days
+    expires_in = token_response.get("expires_in", 5184000)
     token_expiry = (
         datetime.now(timezone.utc) + timedelta(seconds=expires_in)
     ).isoformat()
 
-    token_payload = json.dumps({
+    token_payload = {
         "access_token": access_token,
         "refresh_token": refresh_token,
         "token_expiry": token_expiry,
-    })
+    }
 
-    # Step 4: Store in SSM as SecureString (encrypted at rest, free with AWS managed key)
-    ssm = boto3.client("ssm", region_name=region)
-    ssm.put_parameter(
-        Name="/quillcast/linkedin/tokens",
-        Value=token_payload,
-        Type="SecureString",
-        Overwrite=True,
-    )
+    path = _token_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(token_payload, indent=2), encoding="utf-8")
 
-    print("\n✅ Tokens stored in SSM: /quillcast/linkedin/tokens")
+    print(f"\n✅ Tokens saved to {path}")
     print(f"   Token expires: {token_expiry}")
     print(f"   Refresh token present: {'yes' if refresh_token else 'no'}")
 

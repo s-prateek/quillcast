@@ -2,23 +2,23 @@
 
 # Quillcast
 
-**Serverless AI content pipeline — discover trends, draft platform-adapted posts,  
-preview & edit locally, publish with one click.**
+**Local AI content pipeline — discover trends, draft platform-adapted posts,  
+preview & edit, publish with one click.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
-[![AWS CDK v2](https://img.shields.io/badge/AWS%20CDK-v2-orange.svg)](https://docs.aws.amazon.com/cdk/v2/guide/)
-[![Cost: ~$0/month](https://img.shields.io/badge/cost-~%240%2Fmonth-brightgreen.svg)](#cost)
 
 </div>
 
 ---
 
-Quillcast runs on AWS for pennies a month. Every day, a Lambda function picks a trending topic from your RSS feeds or curated list, calls Amazon Bedrock (Claude Haiku) to draft a platform-adapted post, and saves it to DynamoDB. You open a local Streamlit UI, see a pixel-accurate preview of how the post will look on LinkedIn, tweak the copy inline, and hit **Publish**.
+Quillcast runs entirely on your machine. It picks a topic from RSS feeds or your curated list, calls **Claude or Gemini** directly to draft posts, saves them as local JSON files, and (coming soon) lets you preview and publish to LinkedIn from a Streamlit UI.
 
-No hosted UI. No always-on containers. No unnecessary cost.
+No AWS. No Lambda. No Bedrock. No Marketplace billing.
 
-> **Status:** Active development — Phase 1 (Foundation) complete. See [docs/PLAN.md](docs/PLAN.md) for the full roadmap.
+> **Status:** Active development — Phase 2 (content generation) works locally. See [docs/PLAN.md](docs/PLAN.md).
+
+**Setup guide:** [docs/SETUP.md](docs/SETUP.md)
 
 ---
 
@@ -39,13 +39,13 @@ No hosted UI. No always-on containers. No unnecessary cost.
 
 ## Features
 
-- **AI-generated drafts** — Claude Haiku generates platform-adapted content variants (LinkedIn, Facebook, blog) in a single Bedrock call
+- **AI-generated drafts** — Claude or Gemini generates platform-adapted content variants (LinkedIn, Facebook, blog) in one API call
 - **Human-in-the-loop** — mandatory local review before anything goes live; no post is ever published automatically
-- **Pixel-accurate preview** — Streamlit UI renders a LinkedIn card mock-up so you see exactly how the post will look
-- **Inline editing** — edit the draft directly in the UI with a live character counter and platform constraint warnings
-- **Multi-platform ready** — publisher abstraction means adding Facebook or a blog platform requires one new file, zero core changes
-- **Truly serverless** — EventBridge + Lambda + DynamoDB, all within AWS free tier at personal-use volume
-- **Config-driven** — enable/disable platforms, add RSS feeds, update topics — all via YAML files in S3, no redeployment
+- **Pixel-accurate preview** — Streamlit UI renders a LinkedIn card mock-up (Phase 4)
+- **Inline editing** — edit drafts locally with character counters and platform constraints
+- **Multi-platform ready** — publisher abstraction means adding Facebook or a blog requires one new file
+- **Config-driven** — enable/disable platforms, RSS feeds, and topics via YAML — no redeployment
+- **Fully local** — config, drafts, and OAuth tokens stay on your machine
 
 ---
 
@@ -53,135 +53,71 @@ No hosted UI. No always-on containers. No unnecessary cost.
 
 ```mermaid
 graph TD
-    A[EventBridge Scheduler\ndaily cron] --> B[generate_post Lambda]
-    C[S3: platforms.yaml\ntopics.yaml] --> B
-    B --> D[Amazon Bedrock\nClaude Haiku]
-    D --> B
-    B --> E[(DynamoDB\nquillcast-drafts)]
+    A[scripts/run_generate_post.py] --> B[shared/generate.py]
+    C[config/*.yaml] --> B
+    D[RSS feeds] --> B
+    B --> E[Claude or Gemini API]
+    E --> B
+    B --> F[data/drafts/*.json]
 
-    F[Streamlit UI\nlocal only] -->|reads drafts| E
-    F -->|Publish| G[publish_post Lambda\nFunction URL]
-    G --> H{Publisher\nRegistry}
-    H --> I[LinkedIn ✅]
-    H --> J[Facebook 🔜]
-    H --> K[Blog 🔜]
-    G --> E
-
-    I & J & K --> L[SSM Parameter Store\nOAuth tokens per platform]
+    G[Streamlit UI - Phase 4] --> F
+    G --> H[publishers/linkedin.py]
+    H --> I[LinkedIn API]
+    J[data/tokens/linkedin.json] --> H
 ```
 
 ### Flow
 
-1. **EventBridge** triggers `generate_post` Lambda daily at your configured time
-2. Lambda fetches trending articles from RSS feeds, merges with your `topics.yaml`, selects the best topic
-3. A single Bedrock call generates content variants for all enabled platforms as structured JSON
-4. The draft is written to DynamoDB with `OverallStatus: PENDING`
-5. You open `streamlit run ui/app.py` locally — the UI queries the DynamoDB GSI for pending drafts
-6. You preview, edit, and click **Publish** — the UI calls `publish_post` Lambda via its Function URL
-7. Lambda loads OAuth tokens from SSM, calls the platform API, updates DynamoDB with the post ID
+1. You run `python scripts/run_generate_post.py` (or a future cron on your machine)
+2. Quillcast fetches RSS articles, falls back to evergreen topics from `config/topics.yaml`
+3. One LLM API call generates JSON content variants for all enabled platforms
+4. The draft is saved to `data/drafts/<post-id>.json` with `OverallStatus: PENDING`
+5. You open `streamlit run ui/app.py` — review, edit, and publish (Phase 3–4)
+6. The LinkedIn publisher reads tokens from `data/tokens/linkedin.json` and posts on your approval
 
 ---
 
 ## Cost
 
-All services stay within AWS free tier at personal-use volume (≈30 posts/month):
+| Item | Typical monthly cost |
+|------|---------------------|
+| Claude Haiku or Gemini Flash | ~$0.01–0.50 (≈30 posts) |
+| LinkedIn API | Free |
+| AWS | **$0** — not used |
+| **Total** | **~$0.01–0.50/month** |
 
-| Service | Usage | Monthly Cost |
-|---|---|---|
-| EventBridge Scheduler | 30 events | Free |
-| Lambda (×2) | ~60 invocations | Free (1M/month free tier) |
-| DynamoDB On-Demand | ~100 reads/writes | Free (25 GB free tier) |
-| Bedrock — Claude Haiku | 30 posts × ~500 tokens | ~$0.01 |
-| S3 | 2 small config files | ~$0 |
-| SSM Parameter Store (Standard) | 3–5 parameters | Free |
-| **Total** | | **~$0.01–0.05/month** |
-
-Set an AWS Budget alert at $5/month as a safety net — instructions in [Quick Start](#quick-start).
+You pay Anthropic or Google directly. No cloud infrastructure bill.
 
 ---
 
 ## Prerequisites
 
-- **AWS account** with CLI configured (`aws configure`)
-- **Python 3.9+** and **Node.js 20+** (for CDK CLI)
-- **LinkedIn Developer App** with `w_member_social` scope — [register here](https://developer.linkedin.com/)
-- **Amazon Bedrock** — enable Claude Haiku model access in your AWS region via the [Bedrock console](https://console.aws.amazon.com/bedrock/)
+- **Python 3.9+**
+- **Anthropic or Google API key** for draft generation
+- **LinkedIn Developer App** (Phase 3 publish) with `w_member_social` scope — [register here](https://developer.linkedin.com/)
 
 ---
 
 ## Quick Start
 
-### 1. Clone and set up
-
 ```bash
 git clone https://github.com/your-username/quillcast.git
 cd quillcast
 
-# Install CDK CLI
-npm install -g aws-cdk
-
-# Create virtual environment
 python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
 
-# Install dependencies
-pip install -r requirements-cdk.txt -r requirements-dev.txt
-```
-
-### 2. Configure your environment
-
-```bash
 cp .env.example .env
-# Edit .env with your AWS account ID, region, and author details
+# Add ANTHROPIC_API_KEY or GEMINI_API_KEY to .env
+
+python scripts/run_generate_post.py
+ls data/drafts/
 ```
 
-### 3. Edit your voice and topics
+**Claude (default):** [console.anthropic.com](https://console.anthropic.com/)  
+**Gemini:** set `LLM_PROVIDER=gemini` and `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey)
 
-Open `config/topics.yaml` and update:
-- `author_name` — your name (used in the Streamlit preview)
-- `voice.description` — how you actually write (be specific; this drives Bedrock's output)
-- `evergreen_topics` — topics you'd genuinely post about
-
-Open `config/platforms.yaml` to add or remove RSS feeds.
-
-### 4. Deploy AWS infrastructure
-
-```bash
-# One-time bootstrap per AWS account + region
-cdk bootstrap
-
-# Deploy DynamoDB table, S3 bucket, and SSM parameters
-cdk deploy QuillcastStorageStack
-```
-
-Note the `ConfigBucketName` from the deployment output, then upload your config:
-
-```bash
-aws s3 cp config/platforms.yaml s3://<ConfigBucketName>/config/platforms.yaml
-aws s3 cp config/topics.yaml    s3://<ConfigBucketName>/config/topics.yaml
-```
-
-### 5. LinkedIn OAuth
-
-```bash
-export LINKEDIN_CLIENT_ID=your_client_id
-export LINKEDIN_CLIENT_SECRET=your_client_secret
-python scripts/linkedin_oauth.py
-```
-
-This opens a browser, handles the OAuth flow, and stores your tokens in SSM automatically.
-
-> Add `http://localhost:8080/callback` as an authorized redirect URL in your LinkedIn app settings before running this.
-
-### 6. Set a budget alert
-
-In the [AWS Billing console](https://console.aws.amazon.com/billing/home#/budgets), create a budget alert at **$5/month**. This guards against any unexpected runaway costs.
-
-### 7. Run the review UI
-
-```bash
-source .venv/bin/activate
-streamlit run ui/app.py
-```
+For LinkedIn OAuth and full setup, see **[docs/SETUP.md](docs/SETUP.md)**.
 
 ---
 
@@ -189,17 +125,13 @@ streamlit run ui/app.py
 
 ### `config/platforms.yaml`
 
-Controls which platforms are enabled and where their OAuth tokens live in SSM. Flip `enabled: true` to activate a platform — no code changes needed.
+Controls which platforms are enabled, where OAuth tokens are stored, and RSS feed sources.
 
 ```yaml
 platforms:
   linkedin:
     enabled: true
-    ssm_token_key: /quillcast/linkedin/tokens
-
-  facebook:
-    enabled: false    # flip to enable
-    ssm_token_key: /quillcast/facebook/tokens
+    token_file: data/tokens/linkedin.json
 
 rss_feeds:
   - url: https://hnrss.org/frontpage
@@ -220,20 +152,26 @@ evergreen_topics:
   - Lessons from shipping side projects
 ```
 
+### Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ANTHROPIC_API_KEY` | For Claude | API key from Anthropic |
+| `GEMINI_API_KEY` | For Gemini | API key from Google |
+| `LLM_PROVIDER` | No | `claude` (default) or `gemini` |
+| `LLM_MODEL` | No | Override default model |
+| `LINKEDIN_CLIENT_ID` | For OAuth | LinkedIn app client ID |
+| `LINKEDIN_CLIENT_SECRET` | For OAuth | LinkedIn app secret |
+
 ---
 
 ## Adding a New Platform
 
 1. Create `publishers/<platform>.py` implementing the `Publisher` abstract base class
-2. Set `enabled: true` in `config/platforms.yaml` with an `ssm_token_key`
-3. Store your OAuth token JSON in SSM at that key path
-4. Re-upload `platforms.yaml` to S3
+2. Set `enabled: true` in `config/platforms.yaml` with a `token_file` path
+3. Run the platform's OAuth flow and save tokens to that file
 
-The Streamlit UI will automatically show a new tab for the platform. No Lambda or UI code changes required.
-
-See `publishers/base.py` for the full interface and `publishers/linkedin.py` as a reference implementation.
-
-For full architecture details see [docs/design.md](docs/design.md).
+The Streamlit UI will show a new tab for the platform automatically. See `docs/design.md` for the full interface.
 
 ---
 
@@ -241,46 +179,37 @@ For full architecture details see [docs/design.md](docs/design.md).
 
 ```
 quillcast/
-├── cdk/                        # AWS CDK infrastructure
-│   ├── app.py
-│   └── stacks/
-│       ├── storage_stack.py    # DynamoDB + S3 + SSM (Phase 1)
-│       ├── lambda_stack.py     # Lambdas + Function URL (Phase 2–3)
-│       └── scheduler_stack.py  # EventBridge + DLQ (Phase 5)
-│
-├── lambdas/
-│   ├── generate_post/          # Trend fetch → Bedrock → DynamoDB
-│   └── publish_post/           # Publisher dispatch → platform API
-│
-├── publishers/
-│   ├── base.py                 # Abstract Publisher interface
-│   ├── registry.py             # Platform name → Publisher class
-│   ├── linkedin.py             # LinkedIn REST API publisher
-│   └── blog/                   # Blog publisher stubs
-│
-├── ui/
-│   ├── app.py                  # Streamlit entrypoint (run locally)
-│   └── components/             # Platform preview cards, tab layout
-│
 ├── shared/
-│   ├── models.py               # PostRecord, PostContent, PublishResult
-│   ├── dynamodb.py             # DynamoDB helpers
-│   └── config.py               # S3 config loader
+│   ├── generate.py             # RSS → topic → LLM → save draft
+│   ├── llm.py                  # Claude / Gemini API client
+│   ├── rss.py                  # RSS feed fetcher
+│   ├── drafts.py               # Local JSON draft storage
+│   ├── config.py               # YAML config loader
+│   └── models.py               # PostRecord, PublishResult, etc.
+│
+├── publishers/                 # Platform API integrations (Phase 3)
+├── ui/                         # Streamlit review UI (Phase 4)
 │
 ├── config/
-│   ├── platforms.yaml          # Platform enable/disable + RSS feeds
-│   └── topics.yaml             # Author voice + evergreen topics
+│   ├── platforms.yaml
+│   └── topics.yaml
+│
+├── data/                       # gitignored — drafts + tokens
+│   ├── drafts/
+│   └── tokens/
 │
 ├── scripts/
-│   └── linkedin_oauth.py       # OAuth flow helper
+│   ├── run_generate_post.py
+│   └── linkedin_oauth.py
 │
 ├── docs/
-│   ├── design.md               # Full architecture & data model
-│   └── PLAN.md                 # Phased implementation plan
+│   ├── SETUP.md
+│   ├── design.md
+│   └── PLAN.md
+│
 ├── tests/
 ├── .env.example
-├── pyproject.toml
-├── requirements-cdk.txt
+├── requirements.txt
 └── requirements-dev.txt
 ```
 
@@ -288,19 +217,17 @@ quillcast/
 
 ## Contributing
 
-Contributions are welcome, especially new platform publishers. See [docs/PLAN.md](docs/PLAN.md) for what's planned and what's in progress.
+Contributions welcome, especially new platform publishers. See [docs/PLAN.md](docs/PLAN.md).
 
-1. Fork the repo and create a branch: `git checkout -b feat/facebook-publisher`
-2. Make your changes and add tests
-3. Run the linter: `ruff check .`
-4. Run tests: `pytest`
-5. Open a pull request with a clear description
+1. Fork and branch: `git checkout -b feat/facebook-publisher`
+2. Make changes and add tests
+3. `ruff check .` and `pytest`
+4. Open a pull request
 
-Please do not commit `.env` files, tokens, or any real credentials. All secrets must go through SSM Parameter Store.
+Do not commit `.env`, `data/`, or any real credentials.
 
 ---
 
 ## License
 
-[MIT](LICENSE) — free to use, modify, and distribute.
-
+[MIT](LICENSE)

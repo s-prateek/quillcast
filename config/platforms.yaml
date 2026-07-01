@@ -1,16 +1,16 @@
 platforms:
   linkedin:
     enabled: true
-    ssm_token_key: /quillcast/linkedin/tokens
+    token_file: data/tokens/linkedin.json
 
   facebook:
     enabled: false   # flip to true when ready — no code changes needed
-    ssm_token_key: /quillcast/facebook/tokens
+    token_file: data/tokens/facebook.json
 
   blog:
     enabled: false
     type: ghost      # ghost | wordpress | hugo_github
-    ssm_token_key: /quillcast/blog/tokens
+    token_file: data/tokens/blog.json
 
 rss_feeds:
   - url: https://hnrss.org/frontpage
