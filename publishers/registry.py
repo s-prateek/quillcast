@@ -3,10 +3,12 @@ from __future__ import annotations
 from typing import Any
 
 from publishers.base import Publisher
+from publishers.blog.ghost import GhostPublisher
 from publishers.linkedin import LinkedInPublisher
 
 _REGISTRY: dict[str, type[Publisher]] = {
     "linkedin": LinkedInPublisher,
+    "blog": GhostPublisher,
 }
 
 

@@ -1,6 +1,6 @@
 # Contributing to Quillcast
 
-Thanks for your interest in Quillcast. This project is a **local-first** content pipeline: discover topics from RSS, generate drafts with Claude or Gemini, review in Streamlit, and publish to LinkedIn.
+Thanks for your interest in Quillcast. This project is a **local-first** content pipeline: discover topics from RSS, generate drafts with Claude or Gemini, review in Streamlit, and publish to LinkedIn or Ghost.
 
 ## Development setup
 
@@ -73,7 +73,7 @@ Architecture details: [docs/design.md](docs/design.md)
 
 5. Update `docs/SETUP.md` if OAuth or setup steps are required.
 
-See `publishers/linkedin.py` for a full reference and `publishers/facebook.py` for a stub.
+See `publishers/linkedin.py` for a full reference, `publishers/blog/ghost.py` for Ghost Admin API, and `publishers/facebook.py` for a stub.
 
 ## Pull requests
 

@@ -12,7 +12,7 @@ preview & edit, publish with one click.**
 
 ---
 
-Quillcast runs entirely on your machine. It picks a topic from RSS feeds or your curated list, calls **Claude or Gemini** directly to draft posts, saves them as local JSON files, and (coming soon) lets you preview and publish to LinkedIn from a Streamlit UI.
+Quillcast runs entirely on your machine. It picks a topic from RSS feeds or your curated list, calls **Claude or Gemini** directly to draft posts, saves them as local JSON files, and lets you preview and publish to **LinkedIn** and **Ghost** from a Streamlit UI.
 
 No AWS. No Lambda. No Bedrock. No Marketplace billing.
 
@@ -41,7 +41,8 @@ No AWS. No Lambda. No Bedrock. No Marketplace billing.
 
 - **AI-generated drafts** — Claude or Gemini generates platform-adapted content variants (LinkedIn, Facebook, blog) in one API call
 - **Human-in-the-loop** — mandatory local review before anything goes live; no post is ever published automatically
-- **Pixel-accurate preview** — Streamlit UI renders a LinkedIn card mock-up (Phase 4)
+- **Pixel-accurate preview** — Streamlit UI renders LinkedIn and blog previews
+- **Ghost blog publish** — one-click create **drafts** in Ghost Admin (local or production)
 - **Inline editing** — edit drafts locally with character counters and platform constraints
 - **Multi-platform ready** — publisher abstraction means adding Facebook or a blog requires one new file
 - **Config-driven** — enable/disable platforms, RSS feeds, and topics via YAML — no redeployment
@@ -64,13 +65,15 @@ graph TD
     G --> F
     G --> H[publishers/linkedin.py]
     H --> I[LinkedIn API]
+    G --> J[publishers/blog/ghost.py]
+    J --> K[Ghost Admin API]
 ```
 
 ### Flow
 
 1. Open **Discover** → fetch RSS → LLM curates today's topic cards
 2. Pick a topic → **Generate draft** (second LLM call)
-3. Switch to **Review** → edit, preview, **Publish** to LinkedIn
+3. Switch to **Review** → edit, preview, **Publish** to LinkedIn and/or Ghost (blog drafts)
 4. Optional CLI: `python scripts/run_generate_post.py` auto-picks a topic without the UI
 
 ---
@@ -81,6 +84,7 @@ graph TD
 |------|---------------------|
 | Claude Haiku or Gemini Flash | ~$0.01–0.50 (≈30 posts) |
 | LinkedIn API | Free |
+| Ghost Admin API | Free |
 | AWS | **$0** — not used |
 | **Total** | **~$0.01–0.50/month** |
 
@@ -92,14 +96,15 @@ You pay Anthropic or Google directly. No cloud infrastructure bill.
 
 - **Python 3.9+**
 - **Anthropic or Google API key** for draft generation
-- **LinkedIn Developer App** (Phase 3 publish) with `w_member_social` scope — [register here](https://developer.linkedin.com/)
+- **LinkedIn Developer App** with `w_member_social` scope — [register here](https://developer.linkedin.com/) (LinkedIn publish)
+- **Ghost custom integration** — Admin API URL + key from Ghost Admin → Settings → Integrations (blog publish). See [docs/SETUP.md](docs/SETUP.md#6b-ghost-blog)
 
 ---
 
 ## Quick Start
 
 ```bash
-git clone https://github.com/your-username/quillcast.git
+git clone https://github.com/s-prateek/quillcast.git
 cd quillcast
 
 python3 -m venv .venv && source .venv/bin/activate
@@ -120,12 +125,14 @@ streamlit run ui/app.py
 ```
 
 1. **Discover** — fetch RSS, pick a curated topic, generate draft
-2. **Review** — edit, preview, publish to LinkedIn
+2. **Review** — edit, preview, publish to LinkedIn and/or Ghost (blog tab)
+
+**Ghost blog:** run `python scripts/ghost_setup.py` once to save Admin API credentials to `data/tokens/blog.json` (gitignored). Publish creates a **draft in Ghost Admin** — you publish to the public site from Ghost. See [docs/SETUP.md](docs/SETUP.md#6b-ghost-blog).
 
 **Claude (default):** [console.anthropic.com](https://console.anthropic.com/)  
 **Gemini:** set `LLM_PROVIDER=gemini` and `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey)
 
-For LinkedIn OAuth and full setup, see **[docs/SETUP.md](docs/SETUP.md)**.
+For LinkedIn OAuth, Ghost setup, and full walkthrough, see **[docs/SETUP.md](docs/SETUP.md)**.
 
 ---
 
@@ -140,6 +147,11 @@ platforms:
   linkedin:
     enabled: true
     token_file: data/tokens/linkedin.json
+  blog:
+    enabled: true
+    type: ghost
+    token_file: data/tokens/blog.json
+    default_status: draft   # Ghost Admin draft — publish manually on the site
 
 rss_feeds:
   - url: https://hnrss.org/frontpage
@@ -170,6 +182,10 @@ evergreen_topics:
 | `LLM_MODEL` | No | Override default model |
 | `LINKEDIN_CLIENT_ID` | For OAuth | LinkedIn app client ID |
 | `LINKEDIN_CLIENT_SECRET` | For OAuth | LinkedIn app secret |
+| `GHOST_URL` | For blog | Optional override for Ghost site URL (default: `data/tokens/blog.json`) |
+| `GHOST_ADMIN_API_KEY` | For blog | Optional override for Ghost Admin API key (`id:secret`) |
+
+Credentials for LinkedIn and Ghost are stored in **`data/tokens/`** (gitignored). Use `scripts/linkedin_oauth.py` and `scripts/ghost_setup.py` to create those files. `.env` overrides are optional.
 
 ---
 
@@ -191,18 +207,22 @@ quillcast/
 │   ├── generate.py             # generate_post_for_topic()
 │   ├── discover.py             # RSS → LLM topic curation
 │   ├── publish.py              # publish/save/archive helpers
+│   ├── blog_content.py         # blog title/body/tags JSON helpers
 │   ├── llm.py                  # Claude / Gemini API client
 │   ├── rss.py                  # RSS feed fetcher
 │   ├── drafts.py               # Local JSON draft storage
 │   ├── config.py               # YAML config loader
 │   └── models.py               # PostRecord, PublishResult, etc.
 │
-├── publishers/                 # Platform API integrations (Phase 3)
+├── publishers/                 # Platform API integrations
+│   ├── linkedin.py
+│   └── blog/ghost.py
 ├── ui/
 │   ├── app.py                  # Discover + Review navigation
 │   └── components/
 │       ├── discover.py
-│       └── platform_tab.py
+│       ├── platform_tab.py
+│       └── blog_tab.py
 │
 ├── config/
 │   ├── platforms.yaml
@@ -215,7 +235,8 @@ quillcast/
 ├── scripts/
 │   ├── run_generate_post.py
 │   ├── publish_post.py
-│   └── linkedin_oauth.py
+│   ├── linkedin_oauth.py
+│   └── ghost_setup.py
 │
 ├── docs/
 │   ├── SETUP.md

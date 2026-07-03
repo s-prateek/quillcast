@@ -9,6 +9,7 @@ import streamlit.components.v1 as components
 from publishers.registry import get
 from shared.models import PostRecord
 from shared.publish import archive_target, publish_draft, save_edited_content
+from ui.components.blog_tab import render_blog_tab
 from ui.components.linkedin_preview import render_linkedin_preview
 
 
@@ -49,6 +50,10 @@ def render_platform_tab(
     platform_config: dict[str, Any],
     profile: dict[str, str],
 ) -> None:
+    if platform == "blog":
+        render_blog_tab(record, platform_config=platform_config, profile=profile)
+        return
+
     target = record.Targets.get(platform)
     if target is None:
         st.warning(f"No target for platform {platform!r}.")

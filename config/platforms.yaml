@@ -8,9 +8,10 @@ platforms:
     token_file: data/tokens/facebook.json
 
   blog:
-    enabled: false
-    type: ghost      # ghost | wordpress | hugo_github
+    enabled: true
+    type: ghost
     token_file: data/tokens/blog.json
+    default_status: draft   # Ghost Admin draft — publish manually on the site
 
 rss_feeds:
   - url: https://hnrss.org/frontpage
