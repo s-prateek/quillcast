@@ -36,11 +36,21 @@ def _select_topic(
     return topic, "", "evergreen"
 
 
+def _topic_label_from_idea(idea: str, title: str | None = None) -> str:
+    if title and title.strip():
+        return title.strip()
+    first_line = idea.strip().split("\n")[0]
+    if len(first_line) <= 80:
+        return first_line
+    return first_line[:77] + "…"
+
+
 def generate_post_for_topic(
     *,
     topic: str,
     source_url: str = "",
     source_type: str = "rss",
+    content: str | None = None,
 ) -> dict[str, Any]:
     """LLM call #2 — generate platform variants for a user-selected topic."""
     platforms_config = load_platforms_config()
@@ -50,9 +60,11 @@ def generate_post_for_topic(
         raise RuntimeError("No platforms are enabled in config/platforms.yaml")
 
     voice = topics_config.get("voice", {})
+    llm_topic = content if content is not None else topic
     content_variants = generate_content_variants(
-        topic=topic,
-        source_url=source_url or "evergreen",
+        topic=llm_topic,
+        source_url=source_url or ("custom" if source_type == "custom" else "evergreen"),
+        source_type=source_type,
         enabled_platforms=platforms,
         voice=voice,
     )
@@ -78,6 +90,19 @@ def generate_post_for_topic(
         "source_type": record.SourceType,
         "platforms": platforms,
     }
+
+
+def generate_post_from_idea(*, idea: str, title: str | None = None) -> dict[str, Any]:
+    """Generate platform variants from the author's own idea (no RSS/discovery step)."""
+    idea = idea.strip()
+    if not idea:
+        raise RuntimeError("Idea cannot be empty")
+    return generate_post_for_topic(
+        topic=_topic_label_from_idea(idea, title),
+        source_url="",
+        source_type="custom",
+        content=idea,
+    )
 
 
 def generate_post() -> dict[str, Any]:

@@ -50,6 +50,7 @@ def build_prompt(
     *,
     topic: str,
     source_url: str,
+    source_type: str = "rss",
     enabled_platforms: list[str],
     voice: dict[str, Any],
 ) -> tuple[str, str]:
@@ -77,14 +78,25 @@ def build_prompt(
     schema_lines = [platform_specs[platform] for platform in enabled_platforms if platform in platform_specs]
     schema = "{\n  " + ",\n  ".join(schema_lines) + "\n}"
 
-    user_prompt = (
-        f"Topic: {topic}\n"
-        f"Source: {source_url}\n\n"
-        f"Generate social content as valid JSON for these platforms: {', '.join(enabled_platforms)}\n\n"
-        f"{schema}\n\n"
-        f"Only include keys for: {', '.join(enabled_platforms)}.\n"
-        "Return JSON only with no markdown fences or commentary."
-    )
+    if source_type == "custom":
+        user_prompt = (
+            "The author wants to share their own idea. Develop it into posts — "
+            "stay faithful to their angle and key points; do not replace it with a different topic.\n\n"
+            f"Author's idea:\n{topic}\n\n"
+            f"Generate social content as valid JSON for these platforms: {', '.join(enabled_platforms)}\n\n"
+            f"{schema}\n\n"
+            f"Only include keys for: {', '.join(enabled_platforms)}.\n"
+            "Return JSON only with no markdown fences or commentary."
+        )
+    else:
+        user_prompt = (
+            f"Topic: {topic}\n"
+            f"Source: {source_url}\n\n"
+            f"Generate social content as valid JSON for these platforms: {', '.join(enabled_platforms)}\n\n"
+            f"{schema}\n\n"
+            f"Only include keys for: {', '.join(enabled_platforms)}.\n"
+            "Return JSON only with no markdown fences or commentary."
+        )
     return system_prompt, user_prompt
 
 
@@ -164,6 +176,7 @@ def generate_content_variants(
     *,
     topic: str,
     source_url: str,
+    source_type: str = "rss",
     enabled_platforms: list[str],
     voice: dict[str, Any],
 ) -> dict[str, Any]:
@@ -173,6 +186,7 @@ def generate_content_variants(
     system_prompt, user_prompt = build_prompt(
         topic=topic,
         source_url=source_url,
+        source_type=source_type,
         enabled_platforms=enabled_platforms,
         voice=voice,
     )

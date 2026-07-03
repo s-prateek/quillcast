@@ -3,7 +3,7 @@ from __future__ import annotations
 import streamlit as st
 
 from shared.discover import discover_topics
-from shared.generate import generate_post_for_topic
+from shared.generate import generate_post_for_topic, generate_post_from_idea
 from shared.models import TopicCandidate
 
 
@@ -21,10 +21,16 @@ def _candidate_by_id(candidate_id: str) -> TopicCandidate | None:
     return None
 
 
-def render_discover_page() -> None:
-    _init_session_state()
+def _open_draft(post_id: str) -> None:
+    st.session_state.selected_draft_id = post_id
+    st.session_state.page = "Review"
+    st.session_state.topic_candidates = []
+    st.session_state.selected_candidate_id = None
+    st.success("Draft created — opening editor.")
+    st.rerun()
 
-    st.header("Discover topics")
+
+def _render_trending_tab() -> None:
     st.caption("Fetch today's RSS stories, pick one, then generate a draft.")
 
     if st.button("Fetch trending topics", type="primary", use_container_width=True):
@@ -75,11 +81,52 @@ def render_discover_page() -> None:
                     source_url=selected.source_url,
                     source_type=selected.source_type,
                 )
-                st.session_state.selected_draft_id = result["post_id"]
-                st.session_state.page = "Review"
-                st.session_state.topic_candidates = []
-                st.session_state.selected_candidate_id = None
-                st.success("Draft created — opening editor.")
-                st.rerun()
+                _open_draft(result["post_id"])
             except RuntimeError as exc:
                 st.error(str(exc))
+
+
+def _render_custom_idea_tab() -> None:
+    st.caption("Describe what you want to share. The LLM will draft posts in your voice.")
+
+    title = st.text_input(
+        "Title (optional)",
+        placeholder="Short label for your draft list",
+        key="custom_idea_title",
+    )
+    idea = st.text_area(
+        "Your idea",
+        height=200,
+        placeholder=(
+            "e.g. I want to write about how we cut deploy time by 40% by moving "
+            "integration tests to a dedicated staging pipeline…"
+        ),
+        key="custom_idea_text",
+    )
+
+    if st.button("Generate draft from my idea", type="primary", use_container_width=True):
+        if not idea.strip():
+            st.warning("Enter your idea before generating a draft.")
+            return
+        with st.spinner("Generating post variants…"):
+            try:
+                result = generate_post_from_idea(
+                    idea=idea,
+                    title=title.strip() or None,
+                )
+                _open_draft(result["post_id"])
+            except RuntimeError as exc:
+                st.error(str(exc))
+
+
+def render_discover_page() -> None:
+    _init_session_state()
+
+    st.header("Discover")
+    tab_trending, tab_idea = st.tabs(["Trending", "Your idea"])
+
+    with tab_trending:
+        _render_trending_tab()
+
+    with tab_idea:
+        _render_custom_idea_tab()
