@@ -55,6 +55,7 @@ def upsert_env_vars(env_path: Path, updates: dict[str, str]) -> None:
             output_lines.append(_format_env_line(key, remaining[key]))
 
     env_path.parent.mkdir(parents=True, exist_ok=True)
+
     # codeql[py/clear-text-storage-sensitive-data]: Gitignored local .env; user-owned machine.
     env_path.write_text("\n".join(output_lines).rstrip() + "\n", encoding="utf-8")
     os.chmod(env_path, 0o600)

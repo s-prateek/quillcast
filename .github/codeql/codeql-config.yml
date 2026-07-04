@@ -1,0 +1,8 @@
+name: quillcast CodeQL
+
+# upsert_env_vars writes gitignored local .env credentials (chmod 600) for dev setup.
+query-filters:
+  - exclude:
+      id: py/clear-text-storage-sensitive-data
+      paths:
+        - shared/env_file.py
