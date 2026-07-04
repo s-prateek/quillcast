@@ -135,5 +135,5 @@ def render_blog_tab(
     if not publisher.validate_credentials():
         st.warning(
             "Ghost credentials missing or invalid. "
-            "Run `python scripts/ghost_setup.py` with your local or production Admin API key."
+            "Run `python scripts/ghost_setup.py` (writes to `.env`) or set GHOST_URL / GHOST_ADMIN_API_KEY."
         )

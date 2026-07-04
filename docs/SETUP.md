@@ -67,7 +67,6 @@ platforms:
   blog:
     enabled: true
     type: ghost
-    token_file: data/tokens/blog.json
     default_status: draft
 ```
 
@@ -135,14 +134,9 @@ pip install -r requirements.txt   # includes markdown
 python scripts/ghost_setup.py
 ```
 
-Defaults to `http://localhost:2368` if you press Enter for URL. Tokens save to `data/tokens/blog.json` (gitignored).
+Defaults to `http://localhost:2368` if you press Enter for URL. Credentials are merged into `.env` at the project root (gitignored, mode `600`).
 
-Optional `.env` overrides:
-
-```bash
-GHOST_URL=http://localhost:2368
-GHOST_ADMIN_API_KEY=id:secret
-```
+Optional: set `GHOST_URL` and `GHOST_ADMIN_API_KEY` manually in `.env` instead of running the script.
 
 ### Publish a blog draft
 

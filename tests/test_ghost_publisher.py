@@ -1,8 +1,14 @@
 import json
+import os
 from unittest.mock import patch
 
 from publishers.blog.ghost import GhostPublisher, make_ghost_jwt
 from shared.models import PostContent
+
+GHOST_ENV = {
+    "GHOST_URL": "http://localhost:2368",
+    "GHOST_ADMIN_API_KEY": "id:" + "cd" * 32,
+}
 
 
 def test_make_ghost_jwt_has_three_segments():
@@ -18,36 +24,22 @@ def test_make_ghost_jwt_has_three_segments():
     assert parts[2]
 
 
+@patch.dict(os.environ, GHOST_ENV, clear=False)
 @patch("publishers.blog.ghost._http_request")
-def test_validate_credentials_success(mock_http, tmp_path):
+def test_validate_credentials_success(mock_http):
     mock_http.return_value = (200, b'{"site": {"title": "Test"}}')
-    token_file = tmp_path / "blog.json"
-    token_file.write_text(
-        json.dumps({
-            "url": "http://localhost:2368",
-            "admin_api_key": "id:" + "cd" * 32,
-        }),
-        encoding="utf-8",
-    )
-    publisher = GhostPublisher(platform_config={"token_file": str(token_file)})
+    publisher = GhostPublisher()
     assert publisher.validate_credentials() is True
 
 
+@patch.dict(os.environ, GHOST_ENV, clear=False)
 @patch("publishers.blog.ghost._http_request")
-def test_publish_creates_draft(mock_http, tmp_path):
+def test_publish_creates_draft(mock_http):
     mock_http.return_value = (
         201,
         json.dumps({"posts": [{"uuid": "post-uuid-1", "id": "1"}]}).encode(),
     )
-    token_file = tmp_path / "blog.json"
-    token_file.write_text(
-        json.dumps({
-            "url": "http://localhost:2368",
-            "admin_api_key": "id:" + "ef" * 32,
-        }),
-        encoding="utf-8",
-    )
-    publisher = GhostPublisher(platform_config={"token_file": str(token_file)})
+    publisher = GhostPublisher()
     result = publisher.publish(
         PostContent(
             text="## Hello\n\nWorld",
@@ -67,18 +59,11 @@ def test_publish_creates_draft(mock_http, tmp_path):
     assert "<h2>Hello</h2>" in post["html"]
 
 
+@patch.dict(os.environ, GHOST_ENV, clear=False)
 @patch("publishers.blog.ghost._http_request")
-def test_publish_api_error(mock_http, tmp_path):
+def test_publish_api_error(mock_http):
     mock_http.return_value = (403, b"Forbidden")
-    token_file = tmp_path / "blog.json"
-    token_file.write_text(
-        json.dumps({
-            "url": "http://localhost:2368",
-            "admin_api_key": "id:" + "12" * 32,
-        }),
-        encoding="utf-8",
-    )
-    publisher = GhostPublisher(platform_config={"token_file": str(token_file)})
+    publisher = GhostPublisher()
     result = publisher.publish(
         PostContent(text="Body", platform="blog", metadata={"title": "T", "status": "draft"})
     )

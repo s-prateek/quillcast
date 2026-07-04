@@ -9,7 +9,6 @@ import urllib.error
 import urllib.request
 from hashlib import sha256
 from hmac import HMAC
-from pathlib import Path
 from typing import Any
 
 import markdown
@@ -21,41 +20,22 @@ from shared.models import PostContent, PublishResult
 JWT_TTL_SECONDS = 300
 
 
-def _project_root() -> Path:
-    return Path(__file__).resolve().parent.parent.parent
-
-
-def _token_path(platform_config: dict) -> Path:
-    configured = platform_config.get("token_file", "data/tokens/blog.json")
-    path = Path(configured)
-    if not path.is_absolute():
-        path = _project_root() / path
-    return path
-
-
 def _normalize_url(url: str) -> str:
     return url.strip().rstrip("/")
 
 
-def _load_config(platform_config: dict) -> dict[str, str]:
+def _load_config() -> dict[str, str]:
     url = os.environ.get("GHOST_URL", "").strip()
     admin_api_key = os.environ.get("GHOST_ADMIN_API_KEY", "").strip()
 
-    token_path = _token_path(platform_config)
-    if token_path.is_file():
-        data = json.loads(token_path.read_text(encoding="utf-8"))
-        url = url or str(data.get("url", "")).strip()
-        admin_api_key = admin_api_key or str(data.get("admin_api_key", "")).strip()
-
     if not url:
         raise RuntimeError(
-            f"Ghost URL not configured. Set GHOST_URL or add 'url' to {token_path}. "
-            "Run: python scripts/ghost_setup.py"
+            "Ghost URL not configured. Set GHOST_URL in .env (run: python scripts/ghost_setup.py)."
         )
     if not admin_api_key or ":" not in admin_api_key:
         raise RuntimeError(
-            f"Ghost Admin API key not configured. Set GHOST_ADMIN_API_KEY or add "
-            f"'admin_api_key' to {token_path}. Run: python scripts/ghost_setup.py"
+            "Ghost Admin API key not configured. Set GHOST_ADMIN_API_KEY in .env "
+            "(run: python scripts/ghost_setup.py)."
         )
 
     return {"url": _normalize_url(url), "admin_api_key": admin_api_key}
@@ -134,7 +114,7 @@ class GhostPublisher(Publisher):
         self._platform_config = platform_config or {}
 
     def _config(self) -> dict[str, str]:
-        return _load_config(self._platform_config)
+        return _load_config()
 
     def _api_request(
         self,

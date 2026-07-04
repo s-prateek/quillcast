@@ -10,7 +10,6 @@ platforms:
   blog:
     enabled: true
     type: ghost
-    token_file: data/tokens/blog.json
     default_status: draft   # Ghost Admin draft — publish manually on the site
 
 rss_feeds:

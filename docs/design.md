@@ -246,8 +246,10 @@ platforms:
   blog:
     enabled: false
     type: ghost
-    token_file: data/tokens/blog.json
+    default_status: draft
 ```
+
+Ghost credentials: `GHOST_URL` and `GHOST_ADMIN_API_KEY` in `.env` (via `scripts/ghost_setup.py`).
 
 ---
 

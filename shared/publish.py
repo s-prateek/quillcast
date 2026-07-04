@@ -93,10 +93,13 @@ def publish_draft(
 
     publisher = get(platform, platform_config=platform_config)
     if not publisher.validate_credentials():
-        raise RuntimeError(
-            f"Invalid or missing credentials for {platform}. "
-            f"Check token file: {platform_config.get('token_file')}"
-        )
+        if platform == "blog":
+            hint = "Run python scripts/ghost_setup.py or set GHOST_URL / GHOST_ADMIN_API_KEY in .env"
+        elif platform_config.get("token_file"):
+            hint = f"Check token file: {platform_config.get('token_file')}"
+        else:
+            hint = "Check platform credentials"
+        raise RuntimeError(f"Invalid or missing credentials for {platform}. {hint}")
 
     result = publisher.publish(build_post_content(platform=platform, body=body, platform_config=platform_config))
     now = _utc_now()
