@@ -30,12 +30,12 @@ def _load_config() -> dict[str, str]:
 
     if not url:
         raise RuntimeError(
-            "Ghost URL not configured. Set GHOST_URL in .env (run: python scripts/ghost_setup.py)."
+            "Ghost URL not configured. Set GHOST_URL in .env (see .env.example)."
         )
     if not admin_api_key or ":" not in admin_api_key:
         raise RuntimeError(
             "Ghost Admin API key not configured. Set GHOST_ADMIN_API_KEY in .env "
-            "(run: python scripts/ghost_setup.py)."
+            "(see .env.example)."
         )
 
     return {"url": _normalize_url(url), "admin_api_key": admin_api_key}

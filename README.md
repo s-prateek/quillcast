@@ -127,7 +127,7 @@ streamlit run ui/app.py
 1. **Discover** — fetch RSS, pick a curated topic, generate draft
 2. **Review** — edit, preview, publish to LinkedIn and/or Ghost (blog tab)
 
-**Ghost blog:** run `python scripts/ghost_setup.py` — saves `GHOST_URL` and `GHOST_ADMIN_API_KEY` to `.env` (gitignored). Publish creates a **draft in Ghost Admin**. Restart Streamlit after setup. See [docs/SETUP.md](docs/SETUP.md#6b-ghost-blog).
+**Ghost blog:** add `GHOST_URL` and `GHOST_ADMIN_API_KEY` to `.env`, then run `python scripts/ghost_setup.py` to validate. Publish creates a **draft in Ghost Admin**. See [docs/SETUP.md](docs/SETUP.md#6b-ghost-blog).
 
 **Claude (default):** [console.anthropic.com](https://console.anthropic.com/)  
 **Gemini:** set `LLM_PROVIDER=gemini` and `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey)
@@ -181,10 +181,10 @@ evergreen_topics:
 | `LLM_MODEL` | No | Override default model |
 | `LINKEDIN_CLIENT_ID` | For OAuth | LinkedIn app client ID |
 | `LINKEDIN_CLIENT_SECRET` | For OAuth | LinkedIn app secret |
-| `GHOST_URL` | For blog | Ghost site URL — set by `scripts/ghost_setup.py` |
-| `GHOST_ADMIN_API_KEY` | For blog | Ghost Admin API key (`id:secret`) — set by `scripts/ghost_setup.py` |
+| `GHOST_URL` | For blog | Ghost site URL (e.g. `http://localhost:2368`) |
+| `GHOST_ADMIN_API_KEY` | For blog | Ghost Admin API key (`id:secret`) |
 
-Credentials for LinkedIn live in **`data/tokens/`** (gitignored). Ghost credentials live in **`.env`** (gitignored). Use `scripts/linkedin_oauth.py` and `scripts/ghost_setup.py` respectively.
+Credentials for LinkedIn live in **`data/tokens/`** (gitignored). Ghost credentials live in **`.env`** (gitignored). Use `scripts/linkedin_oauth.py` for LinkedIn; add Ghost vars to `.env` manually and run `scripts/ghost_setup.py` to validate.
 
 ---
 

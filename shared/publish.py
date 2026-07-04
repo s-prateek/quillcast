@@ -94,7 +94,7 @@ def publish_draft(
     publisher = get(platform, platform_config=platform_config)
     if not publisher.validate_credentials():
         if platform == "blog":
-            hint = "Run python scripts/ghost_setup.py or set GHOST_URL / GHOST_ADMIN_API_KEY in .env"
+            hint = "Set GHOST_URL and GHOST_ADMIN_API_KEY in .env (see .env.example)"
         elif platform_config.get("token_file"):
             hint = f"Check token file: {platform_config.get('token_file')}"
         else:

@@ -249,7 +249,7 @@ platforms:
     default_status: draft
 ```
 
-Ghost credentials: `GHOST_URL` and `GHOST_ADMIN_API_KEY` in `.env` (via `scripts/ghost_setup.py`).
+Ghost credentials: `GHOST_URL` and `GHOST_ADMIN_API_KEY` in `.env` (validate with `scripts/ghost_setup.py`).
 
 ---
 

@@ -129,14 +129,21 @@ Copy **API URL** and **Admin API key** (`id:secret`).
 
 ### Save credentials
 
+Add to `.env` at the project root (see `.env.example`):
+
+```bash
+GHOST_URL=http://localhost:2368
+GHOST_ADMIN_API_KEY=your_integration_id:your_integration_secret
+```
+
+Validate the connection:
+
 ```bash
 pip install -r requirements.txt   # includes markdown
 python scripts/ghost_setup.py
 ```
 
-Defaults to `http://localhost:2368` if you press Enter for URL. Credentials are merged into `.env` at the project root (gitignored, mode `600`).
-
-Optional: set `GHOST_URL` and `GHOST_ADMIN_API_KEY` manually in `.env` instead of running the script.
+Optional: pass `--url` and `--key` to validate without editing `.env`.
 
 ### Publish a blog draft
 
@@ -159,7 +166,7 @@ Creates a **Ghost Admin draft** (`default_status: draft`). Open Ghost Admin → 
 
 In Streamlit **Review → Blog** tab: edit title, markdown body, and tags, then **Publish**.
 
-When moving to production, re-run `ghost_setup.py` with your live site URL and production Admin API key.
+When moving to production, update `GHOST_URL` and `GHOST_ADMIN_API_KEY` in `.env` and re-run `python scripts/ghost_setup.py`.
 
 ---
 
