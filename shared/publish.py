@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from publishers.registry import get
+from shared.blog_content import parse_blog_content
 from shared.config import enabled_platforms, load_platforms_config
 from shared.drafts import get_record, update_target_status
 from shared.models import PostContent
@@ -46,6 +47,22 @@ def archive_target(*, post_id: str, platform: str) -> None:
     )
 
 
+def build_post_content(*, platform: str, body: str, platform_config: dict) -> PostContent:
+    if platform == "blog":
+        parsed = parse_blog_content(body)
+        status = str(platform_config.get("default_status", "draft")).strip() or "draft"
+        return PostContent(
+            text=parsed["body"],
+            platform=platform,
+            metadata={
+                "title": parsed["title"],
+                "tags": parsed["tags"],
+                "status": status,
+            },
+        )
+    return PostContent(text=body, platform=platform)
+
+
 def publish_draft(
     *,
     post_id: str,
@@ -76,12 +93,15 @@ def publish_draft(
 
     publisher = get(platform, platform_config=platform_config)
     if not publisher.validate_credentials():
-        raise RuntimeError(
-            f"Invalid or missing credentials for {platform}. "
-            f"Check token file: {platform_config.get('token_file')}"
-        )
+        if platform == "blog":
+            hint = "Set GHOST_URL and GHOST_ADMIN_API_KEY in .env (see .env.example)"
+        elif platform_config.get("token_file"):
+            hint = f"Check token file: {platform_config.get('token_file')}"
+        else:
+            hint = "Check platform credentials"
+        raise RuntimeError(f"Invalid or missing credentials for {platform}. {hint}")
 
-    result = publisher.publish(PostContent(text=body, platform=platform))
+    result = publisher.publish(build_post_content(platform=platform, body=body, platform_config=platform_config))
     now = _utc_now()
 
     if result.success:

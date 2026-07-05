@@ -7,7 +7,7 @@ Everything runs on your machine. No AWS account required.
 ## 1. Install
 
 ```bash
-git clone https://github.com/your-username/quillcast.git
+git clone https://github.com/s-prateek/quillcast.git
 cd quillcast
 
 python3 -m venv .venv
@@ -57,13 +57,17 @@ evergreen_topics:
 
 ### `config/platforms.yaml`
 
-Enable platforms and RSS feeds. LinkedIn is enabled by default:
+Enable platforms and RSS feeds. LinkedIn and blog (Ghost) can run side by side:
 
 ```yaml
 platforms:
   linkedin:
     enabled: true
     token_file: data/tokens/linkedin.json
+  blog:
+    enabled: true
+    type: ghost
+    default_status: draft
 ```
 
 ---
@@ -114,7 +118,59 @@ ls -la data/tokens/linkedin.json
 
 ---
 
-## 6. Publish to LinkedIn (Phase 3)
+## 6b. Ghost blog
+
+### Create a custom integration
+
+**Local dev:** http://localhost:2368/ghost → **Settings → Integrations → Add custom integration**  
+**Production:** `https://yourblog.com/ghost` → same path
+
+Copy **API URL** and **Admin API key** (`id:secret`).
+
+### Save credentials
+
+Add to `.env` at the project root (see `.env.example`):
+
+```bash
+GHOST_URL=http://localhost:2368
+GHOST_ADMIN_API_KEY=your_integration_id:your_integration_secret
+```
+
+Validate the connection:
+
+```bash
+pip install -r requirements.txt   # includes markdown
+python scripts/ghost_setup.py
+```
+
+Optional: pass `--url` and `--key` to validate without editing `.env`.
+
+### Publish a blog draft
+
+Generate a draft with blog enabled (`blog.enabled: true` in `config/platforms.yaml`). Then:
+
+```bash
+python scripts/publish_post.py \
+  --post-id <your-draft-uuid> \
+  --platform blog \
+  --dry-run
+```
+
+```bash
+python scripts/publish_post.py \
+  --post-id <your-draft-uuid> \
+  --platform blog
+```
+
+Creates a **Ghost Admin draft** (`default_status: draft`). Open Ghost Admin → **Posts** to review and publish to the public site.
+
+In Streamlit **Review → Blog** tab: edit title, markdown body, and tags, then **Publish**.
+
+When moving to production, update `GHOST_URL` and `GHOST_ADMIN_API_KEY` in `.env` and re-run `python scripts/ghost_setup.py`.
+
+---
+
+## 7. Publish to LinkedIn (Phase 3)
 
 ### Prerequisites
 
@@ -153,7 +209,7 @@ python scripts/publish_post.py --post-id <uuid> --text "My edited post..."
 
 ---
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
 ### `ANTHROPIC_API_KEY is not set`
 
@@ -190,7 +246,7 @@ Ensure `http://localhost:8080/callback` is registered exactly in your LinkedIn a
 
 ---
 
-## 8. Review UI
+## 9. Review UI
 
 ```bash
 pip install -r ui/requirements.txt
@@ -209,14 +265,15 @@ Opens at http://localhost:8501 (browser auto-open disabled via `.streamlit/confi
 ### Review
 
 - Sidebar lists `PENDING` drafts
-- Edit text, see LinkedIn preview, character counter
-- **Publish** posts to LinkedIn; **Archive** skips
+  - Edit text, see LinkedIn preview, character counter
+  - **Blog** tab: title, markdown body, tags, preview
+  - **Publish** posts to LinkedIn or Ghost (blog drafts); **Archive** skips
 
 Set `AUTHOR_NAME`, `AUTHOR_HEADLINE`, and optional `AUTHOR_PROFILE_PIC_URL` in `.env` for the preview card.
 
 ---
 
-## 9. Directory layout after setup
+## 10. Directory layout after setup
 
 ```
 quillcast/

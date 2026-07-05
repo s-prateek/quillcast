@@ -159,7 +159,7 @@ We may update this Privacy Policy from time to time. The current version is main
 
 ## 11. Contact Us
 
-Open a GitHub issue: [github.com/your-username/quillcast](https://github.com/your-username/quillcast)
+Open a GitHub issue: [github.com/s-prateek/quillcast](https://github.com/s-prateek/quillcast)
 
 ---
 

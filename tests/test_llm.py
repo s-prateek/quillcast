@@ -1,5 +1,5 @@
-from shared.llm import _normalize_gemini_model, build_prompt, extract_json
 from shared.generate import _topic_label_from_idea
+from shared.llm import _normalize_gemini_model, build_prompt, extract_json
 
 
 def test_extract_json_strips_markdown_fence() -> None:
