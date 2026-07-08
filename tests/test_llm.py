@@ -1,5 +1,5 @@
 from shared.generate import _topic_label_from_idea
-from shared.llm import _normalize_gemini_model, build_prompt, extract_json
+from shared.llm import _normalize_gemini_model, _voice_prompt_sections, build_prompt, extract_json
 
 
 def test_extract_json_strips_markdown_fence() -> None:
@@ -23,6 +23,41 @@ def test_build_prompt_custom_idea_uses_author_idea_wording() -> None:
     assert "Author's idea:" in user_prompt
     assert "My hot take on monoliths" in user_prompt
     assert "Topic:" not in user_prompt
+
+
+def test_build_prompt_includes_avoid_phrases_and_examples() -> None:
+    system_prompt, _ = build_prompt(
+        topic="Topic",
+        source_url="https://example.com",
+        enabled_platforms=["linkedin"],
+        voice={
+            "author_name": "Test",
+            "description": "Direct",
+            "target_audience": "engineers",
+            "avoid_phrases": ["Let's dive in"],
+            "voice_examples": ["I shipped this last Tuesday and it broke immediately."],
+        },
+    )
+    assert "Let's dive in" in system_prompt
+    assert "I shipped this last Tuesday" in system_prompt
+    assert "Vary structure" in system_prompt
+
+
+def test_voice_prompt_sections_personality_boost() -> None:
+    text = _voice_prompt_sections({}, personality_boost=True)
+    assert "more personality" in text.lower()
+
+
+def test_build_prompt_blog_includes_pull_quote_schema() -> None:
+    _, user_prompt = build_prompt(
+        topic="Topic",
+        source_url="https://example.com",
+        enabled_platforms=["blog"],
+        voice={"author_name": "Test", "description": "Direct", "target_audience": "engineers"},
+        blog_default_tags=["Games"],
+    )
+    assert "pull_quote" in user_prompt
+    assert "Games" in user_prompt
 
 
 def test_topic_label_from_idea_prefers_title() -> None:

@@ -26,7 +26,11 @@ def _summary_for(entry: dict[str, Any]) -> str:
     return (entry.get("summary") or entry.get("title") or "").strip()
 
 
-def fetch_articles(platforms_config: dict[str, Any]) -> list[Article]:
+def fetch_articles(
+    platforms_config: dict[str, Any],
+    *,
+    feed_configs: list[dict[str, Any]] | None = None,
+) -> list[Article]:
     rss_filter = platforms_config.get("rss_filter", {})
     min_age_hours = int(rss_filter.get("min_article_age_hours", 1))
     max_age_hours = int(rss_filter.get("max_article_age_hours", 48))
@@ -36,8 +40,17 @@ def fetch_articles(platforms_config: dict[str, Any]) -> list[Article]:
     min_published = now - timedelta(hours=max_age_hours)
     max_published = now - timedelta(hours=min_age_hours)
 
+    if feed_configs is None:
+        raw_feeds = platforms_config.get("rss_feeds", [])
+        if isinstance(raw_feeds, dict):
+            feed_configs = list(raw_feeds.values())
+        else:
+            feed_configs = raw_feeds
+
     articles: list[Article] = []
-    for feed_cfg in platforms_config.get("rss_feeds", []):
+    for feed_cfg in feed_configs:
+        if not isinstance(feed_cfg, dict) or not feed_cfg.get("url"):
+            continue
         parsed = feedparser.parse(feed_cfg["url"])
         for entry in parsed.entries:
             published_at = _parse_published(entry)

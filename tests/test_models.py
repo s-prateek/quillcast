@@ -10,6 +10,7 @@ def test_post_record_round_trip():
         SourceURL="https://example.com/article",
         SourceType="rss",
         OverallStatus="PENDING",
+        PersonaID="gaming",
         ContentVariants={"linkedin": "Draft text"},
         Targets={"linkedin": TargetRecord()},
     )
@@ -17,5 +18,6 @@ def test_post_record_round_trip():
     restored = PostRecord.from_item(record.to_item())
 
     assert restored.PostID == record.PostID
+    assert restored.PersonaID == "gaming"
     assert restored.ContentVariants == record.ContentVariants
     assert restored.Targets["linkedin"].Status == "DRAFT"

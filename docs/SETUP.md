@@ -40,20 +40,29 @@ Get keys from:
 
 ## 3. Edit config files
 
-### `config/topics.yaml`
+### `config/personas.yaml`
 
-Set your author voice and evergreen fallback topics:
+Set personas (voice, RSS feed keys, evergreen topics, blog tags). Example:
 
 ```yaml
-voice:
-  author_name: Your Name
-  description: Direct, opinionated, practical.
-  target_audience: Software engineers and tech leads
+default_persona: tech
 
-evergreen_topics:
-  - Lessons from shipping side projects
-  - What I learned building in public
+personas:
+  tech:
+    label: "Tech & Engineering"
+    voice:
+      author_name: Prateek Sharma
+      description: Direct, opinionated, practical.
+      target_audience: Software engineers and tech leads
+    rss_feed_keys: [hn, techcrunch, theverge]
+    evergreen_topics:
+      - Lessons from shipping side projects
+  gaming:
+    label: "Gaming & Nintendo"
+    rss_feed_keys: [ign, eurogamer, steam, nintendo_life, push_square]
 ```
+
+`AUTHOR_NAME` in `.env` overrides `author_name` in prompts when set.
 
 ### `config/platforms.yaml`
 
@@ -230,7 +239,7 @@ python scripts/run_generate_post.py
 
 ### `No RSS articles and no evergreen topics configured`
 
-Add topics to `config/topics.yaml` under `evergreen_topics`, or check that RSS feeds are reachable.
+Add evergreen topics under the relevant persona in `config/personas.yaml`, or check that RSS feeds are reachable.
 
 ### `LLM API error 401`
 

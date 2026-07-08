@@ -46,6 +46,36 @@ def _model_id() -> str:
     return DEFAULT_CLAUDE_MODEL
 
 
+def _voice_prompt_sections(voice: dict[str, Any], *, personality_boost: bool = False) -> str:
+    sections: list[str] = []
+
+    avoid = voice.get("avoid_phrases") or []
+    if isinstance(avoid, list) and avoid:
+        banned = ", ".join(f'"{phrase}"' for phrase in avoid if str(phrase).strip())
+        if banned:
+            sections.append(f"Never use these phrases or close paraphrases: {banned}.")
+
+    examples = voice.get("voice_examples") or []
+    if isinstance(examples, list) and examples:
+        sample_lines = [str(ex).strip() for ex in examples if str(ex).strip()]
+        if sample_lines:
+            joined = "\n---\n".join(sample_lines[:2])
+            sections.append(f"Match this tone (do not copy verbatim):\n{joined}")
+
+    sections.append(
+        "Vary structure: do not always use three identical paragraphs. "
+        "Open with a question, a specific observation, or a contrarian claim when it fits."
+    )
+
+    if personality_boost:
+        sections.append(
+            "Write with noticeably more personality: sharper opinions, a concrete practitioner "
+            "moment, varied sentence rhythm. Still authentic — never cheesy or salesy."
+        )
+
+    return "\n".join(sections)
+
+
 def build_prompt(
     *,
     topic: str,
@@ -53,26 +83,39 @@ def build_prompt(
     source_type: str = "rss",
     enabled_platforms: list[str],
     voice: dict[str, Any],
+    personality_boost: bool = False,
+    blog_default_tags: list[str] | None = None,
 ) -> tuple[str, str]:
     author_name = voice.get("author_name", "Author")
     description = voice.get("description", "").strip()
     target_audience = voice.get("target_audience", "professionals")
+    voice_rules = _voice_prompt_sections(voice, personality_boost=personality_boost)
 
     system_prompt = (
         f"You are a ghostwriter for {author_name}. "
         f"Voice: {description} "
-        f"Target audience: {target_audience}."
+        f"Target audience: {target_audience}. "
+        f"{voice_rules}"
     )
 
+    default_tags = blog_default_tags or []
+    tags_hint = ""
+    if default_tags and "blog" in enabled_platforms:
+        tags_hint = f' Prefer tags: {", ".join(default_tags)}.'
+
     platform_specs = {
-        "linkedin": '"linkedin": "...",  // max 3000 chars, professional, 3 paragraphs, ends with a question or CTA',
+        "linkedin": (
+            '"linkedin": "...",  // max 3000 chars, 2-4 short paragraphs, '
+            "ends with a question or sharp observation"
+        ),
         "facebook": '"facebook": "...",  // max 500 chars, casual, conversational',
         "blog": (
             '"blog": {\n'
             '    "title": "...",\n'
             '    "body": "...",  // full markdown, 600-1200 words\n'
+            '    "pull_quote": "...",  // optional standout line for the article\n'
             '    "tags": ["tag1"]\n'
-            "  }"
+            "  }" + (f" //{tags_hint}" if tags_hint else "")
         ),
     }
     schema_lines = [platform_specs[platform] for platform in enabled_platforms if platform in platform_specs]
@@ -179,6 +222,8 @@ def generate_content_variants(
     source_type: str = "rss",
     enabled_platforms: list[str],
     voice: dict[str, Any],
+    personality_boost: bool = False,
+    blog_default_tags: list[str] | None = None,
 ) -> dict[str, Any]:
     if not enabled_platforms:
         raise ValueError("No enabled platforms configured")
@@ -189,6 +234,8 @@ def generate_content_variants(
         source_type=source_type,
         enabled_platforms=enabled_platforms,
         voice=voice,
+        personality_boost=personality_boost,
+        blog_default_tags=blog_default_tags,
     )
 
     last_error: Exception | None = None
@@ -215,6 +262,7 @@ def curate_topic_candidates(
     articles: list[Any],
     evergreen_topics: list[str],
     voice: dict[str, Any],
+    persona: dict[str, Any] | None = None,
     max_topics: int = 8,
 ) -> list[Any]:
     """LLM call #1 — rank RSS + evergreen into post-worthy topic cards."""
@@ -223,6 +271,9 @@ def curate_topic_candidates(
     author_name = voice.get("author_name", "Author")
     description = voice.get("description", "").strip()
     target_audience = voice.get("target_audience", "professionals")
+    curation_hint = ""
+    if persona:
+        curation_hint = str(persona.get("curation_hint", "")).strip()
 
     article_lines = []
     for index, article in enumerate(articles):
@@ -233,10 +284,12 @@ def curate_topic_candidates(
 
     evergreen_lines = [f'- {topic!r}' for topic in evergreen_topics]
 
+    hint_block = f"\nEditorial angle: {curation_hint}\n" if curation_hint else ""
     system_prompt = (
         f"You are an editorial assistant for {author_name}. "
         f"Voice: {description} Target audience: {target_audience}. "
-        "Pick topics worth a LinkedIn post today."
+        "Pick topics worth posting today."
+        f"{hint_block}"
     )
     user_prompt = (
         "From the RSS articles and evergreen ideas below, return up to "

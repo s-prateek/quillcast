@@ -3,7 +3,12 @@ from __future__ import annotations
 import logging
 import re
 
-from shared.config import load_platforms_config, load_topics_config
+from shared.config import (
+    get_persona,
+    load_platforms_config,
+    persona_voice_for_llm,
+    rss_feeds_for_persona,
+)
 from shared.llm import curate_topic_candidates
 from shared.models import TopicCandidate
 from shared.rss import Article, fetch_articles
@@ -45,19 +50,25 @@ def _fallback_from_evergreen(evergreen_topics: list[str], *, max_topics: int) ->
     ]
 
 
-def discover_topics(*, use_llm: bool = True, max_topics: int = 8) -> list[TopicCandidate]:
+def discover_topics(
+    *,
+    persona_id: str,
+    use_llm: bool = True,
+    max_topics: int = 8,
+) -> list[TopicCandidate]:
     """
-    Fetch RSS, then optionally curate with an LLM into post-worthy topic cards.
+    Fetch persona-specific RSS, then optionally curate with an LLM into topic cards.
     Falls back to raw RSS titles or evergreen list if LLM is unavailable.
     """
     platforms_config = load_platforms_config()
-    topics_config = load_topics_config()
-    articles = fetch_articles(platforms_config)
-    evergreen = topics_config.get("evergreen_topics", [])
-    voice = topics_config.get("voice", {})
+    persona = get_persona(persona_id)
+    feeds = rss_feeds_for_persona(persona_id)
+    articles = fetch_articles(platforms_config, feed_configs=feeds)
+    evergreen = persona.get("evergreen_topics", [])
+    voice = persona_voice_for_llm(persona)
 
     if not articles and not evergreen:
-        raise RuntimeError("No RSS articles and no evergreen topics configured")
+        raise RuntimeError("No RSS articles and no evergreen topics configured for this persona")
 
     if use_llm:
         try:
@@ -65,6 +76,7 @@ def discover_topics(*, use_llm: bool = True, max_topics: int = 8) -> list[TopicC
                 articles=articles,
                 evergreen_topics=evergreen,
                 voice=voice,
+                persona=persona,
                 max_topics=max_topics,
             )
         except Exception as exc:

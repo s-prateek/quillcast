@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import streamlit as st
 
+from shared.config import get_persona, list_personas
 from shared.discover import discover_topics
 from shared.generate import generate_post_for_topic, generate_post_from_idea
 from shared.models import TopicCandidate
+from shared.preferences import get_active_persona_id, set_active_persona_id
 
 
 def _init_session_state() -> None:
@@ -12,6 +14,36 @@ def _init_session_state() -> None:
         st.session_state.topic_candidates = []
     if "selected_candidate_id" not in st.session_state:
         st.session_state.selected_candidate_id = None
+    if "active_persona_id" not in st.session_state:
+        st.session_state.active_persona_id = get_active_persona_id()
+
+
+def _persona_selector() -> str:
+    personas = list_personas()
+    if not personas:
+        return "tech"
+
+    options = {p["id"]: p["label"] for p in personas}
+    current = st.session_state.active_persona_id
+    if current not in options:
+        current = get_active_persona_id()
+
+    selected = st.selectbox(
+        "Persona",
+        options=list(options.keys()),
+        index=list(options.keys()).index(current),
+        format_func=lambda pid: options[pid],
+        key="discover_persona_select",
+    )
+    if selected != st.session_state.active_persona_id:
+        st.session_state.active_persona_id = selected
+        set_active_persona_id(selected)
+        st.session_state.topic_candidates = []
+        st.session_state.selected_candidate_id = None
+
+    persona = get_persona(selected)
+    st.caption(persona.get("voice", {}).get("target_audience", ""))
+    return selected
 
 
 def _candidate_by_id(candidate_id: str) -> TopicCandidate | None:
@@ -30,13 +62,16 @@ def _open_draft(post_id: str) -> None:
     st.rerun()
 
 
-def _render_trending_tab() -> None:
-    st.caption("Fetch today's RSS stories, pick one, then generate a draft.")
+def _render_trending_tab(persona_id: str) -> None:
+    st.caption("Fetch today's RSS stories for this persona, pick one, then generate a draft.")
 
     if st.button("Fetch trending topics", type="primary", use_container_width=True):
         with st.spinner("Reading RSS feeds and curating topics…"):
             try:
-                st.session_state.topic_candidates = discover_topics(use_llm=True)
+                st.session_state.topic_candidates = discover_topics(
+                    persona_id=persona_id,
+                    use_llm=True,
+                )
                 st.session_state.selected_candidate_id = None
                 st.success(f"Found {len(st.session_state.topic_candidates)} topics.")
             except RuntimeError as exc:
@@ -80,14 +115,15 @@ def _render_trending_tab() -> None:
                     topic=selected.title,
                     source_url=selected.source_url,
                     source_type=selected.source_type,
+                    persona_id=persona_id,
                 )
                 _open_draft(result["post_id"])
             except RuntimeError as exc:
                 st.error(str(exc))
 
 
-def _render_custom_idea_tab() -> None:
-    st.caption("Describe what you want to share. The LLM will draft posts in your voice.")
+def _render_custom_idea_tab(persona_id: str) -> None:
+    st.caption("Describe what you want to share. The LLM will draft posts in your persona's voice.")
 
     title = st.text_input(
         "Title (optional)",
@@ -113,6 +149,7 @@ def _render_custom_idea_tab() -> None:
                 result = generate_post_from_idea(
                     idea=idea,
                     title=title.strip() or None,
+                    persona_id=persona_id,
                 )
                 _open_draft(result["post_id"])
             except RuntimeError as exc:
@@ -123,10 +160,12 @@ def render_discover_page() -> None:
     _init_session_state()
 
     st.header("Discover")
+    persona_id = _persona_selector()
+
     tab_trending, tab_idea = st.tabs(["Trending", "Your idea"])
 
     with tab_trending:
-        _render_trending_tab()
+        _render_trending_tab(persona_id)
 
     with tab_idea:
-        _render_custom_idea_tab()
+        _render_custom_idea_tab(persona_id)
