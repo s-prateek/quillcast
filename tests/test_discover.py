@@ -28,7 +28,7 @@ def test_discover_topics_uses_llm_when_available(mock_fetch, mock_curate):
         )
     ]
 
-    topics = discover_topics(use_llm=True)
+    topics = discover_topics(persona_id="tech", use_llm=True)
     assert len(topics) == 1
     assert topics[0].title == "AI news"
     mock_curate.assert_called_once()
@@ -47,6 +47,6 @@ def test_discover_topics_falls_back_when_llm_fails(mock_fetch, mock_curate):
     ]
     mock_curate.side_effect = RuntimeError("LLM unavailable")
 
-    topics = discover_topics(use_llm=True)
+    topics = discover_topics(persona_id="tech", use_llm=True)
     assert topics[0].title == "Fallback story"
     assert topics[0].source_type == "rss"

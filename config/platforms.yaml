@@ -13,12 +13,30 @@ platforms:
     default_status: draft   # Ghost Admin draft — publish manually on the site
 
 rss_feeds:
-  - url: https://hnrss.org/frontpage
+  hn:
+    url: https://hnrss.org/frontpage
     category: tech
-  - url: https://feeds.feedburner.com/TechCrunch
+  techcrunch:
+    url: https://feeds.feedburner.com/TechCrunch
     category: tech
-  - url: https://www.theverge.com/rss/index.xml
+  theverge:
+    url: https://www.theverge.com/rss/index.xml
     category: tech
+  ign:
+    url: https://feeds.feedburner.com/ign/all
+    category: gaming
+  eurogamer:
+    url: https://www.eurogamer.net/feed
+    category: gaming
+  steam:
+    url: https://store.steampowered.com/feeds/news.xml
+    category: gaming
+  nintendo_life:
+    url: https://www.nintendolife.com/feeds/latest
+    category: gaming
+  push_square:
+    url: https://www.pushsquare.com/feeds/latest
+    category: gaming
 
 rss_filter:
   min_article_age_hours: 1

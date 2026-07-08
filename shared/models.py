@@ -70,9 +70,11 @@ class PostRecord:
     OverallStatus: str
     ContentVariants: dict[str, Any]
     Targets: dict[str, TargetRecord]
+    PersonaID: str = "tech"
+    SourceContent: str = ""
 
     def to_item(self) -> dict[str, Any]:
-        return {
+        item = {
             "PostID": self.PostID,
             "CreatedAt": self.CreatedAt,
             "UpdatedAt": self.UpdatedAt,
@@ -80,9 +82,13 @@ class PostRecord:
             "SourceURL": self.SourceURL,
             "SourceType": self.SourceType,
             "OverallStatus": self.OverallStatus,
+            "PersonaID": self.PersonaID,
             "ContentVariants": self.ContentVariants,
             "Targets": {platform: target.to_dict() for platform, target in self.Targets.items()},
         }
+        if self.SourceContent:
+            item["SourceContent"] = self.SourceContent
+        return item
 
     @classmethod
     def from_item(cls, item: dict[str, Any]) -> PostRecord:
@@ -99,4 +105,6 @@ class PostRecord:
                 platform: TargetRecord.from_dict(target)
                 for platform, target in item["Targets"].items()
             },
+            PersonaID=str(item.get("PersonaID", "tech")),
+            SourceContent=str(item.get("SourceContent", "")),
         )

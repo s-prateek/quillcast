@@ -157,19 +157,28 @@ rss_feeds:
     category: tech
 ```
 
-### `config/topics.yaml`
+### `config/personas.yaml`
 
-Your author voice and fallback topics for days when RSS yields nothing relevant.
+Personas define voice, RSS sources, evergreen topics, and blog default tags. Switch personas in the Discover UI.
 
 ```yaml
-voice:
-  author_name: Your Name
-  description: Direct, opinionated, practical. No filler phrases.
-  target_audience: Software engineers and tech leads
+default_persona: tech
 
-evergreen_topics:
-  - Lessons from shipping side projects
+personas:
+  tech:
+    label: "Tech & Engineering"
+    voice:
+      author_name: Prateek Sharma
+      description: Direct, opinionated, practical…
+    rss_feed_keys: [hn, techcrunch, theverge]
+    evergreen_topics:
+      - Lessons from shipping side projects
+  gaming:
+    label: "Gaming & Nintendo"
+    rss_feed_keys: [ign, eurogamer, steam, nintendo_life, push_square]
 ```
+
+Author name in prompts uses `AUTHOR_NAME` from `.env` when set, otherwise `author_name` from the active persona.
 
 ### Environment variables
 
@@ -224,8 +233,8 @@ quillcast/
 │       └── blog_tab.py
 │
 ├── config/
-│   ├── platforms.yaml
-│   └── topics.yaml
+│   ├── personas.yaml
+│   └── platforms.yaml
 │
 ├── data/                       # gitignored — drafts + tokens
 │   ├── drafts/

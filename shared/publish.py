@@ -47,7 +47,7 @@ def archive_target(*, post_id: str, platform: str) -> None:
     )
 
 
-def build_post_content(*, platform: str, body: str, platform_config: dict) -> PostContent:
+def build_post_content(*, platform: str, body: str, platform_config: dict, persona_id: str = "tech") -> PostContent:
     if platform == "blog":
         parsed = parse_blog_content(body)
         status = str(platform_config.get("default_status", "draft")).strip() or "draft"
@@ -58,6 +58,7 @@ def build_post_content(*, platform: str, body: str, platform_config: dict) -> Po
                 "title": parsed["title"],
                 "tags": parsed["tags"],
                 "status": status,
+                "persona_id": persona_id,
             },
         )
     return PostContent(text=body, platform=platform)
@@ -101,7 +102,14 @@ def publish_draft(
             hint = "Check platform credentials"
         raise RuntimeError(f"Invalid or missing credentials for {platform}. {hint}")
 
-    result = publisher.publish(build_post_content(platform=platform, body=body, platform_config=platform_config))
+    result = publisher.publish(
+        build_post_content(
+            platform=platform,
+            body=body,
+            platform_config=platform_config,
+            persona_id=record.PersonaID,
+        )
+    )
     now = _utc_now()
 
     if result.success:

@@ -9,9 +9,16 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from shared.config import enabled_platforms, load_platforms_config, load_topics_config  # noqa: E402
+from shared.config import (  # noqa: E402
+    enabled_platforms,
+    get_persona,
+    list_personas,
+    load_platforms_config,
+    resolve_author_name,
+)
 from shared.drafts import get_record, list_records  # noqa: E402
 from shared.env import load_project_env  # noqa: E402
+from shared.generate import regenerate_draft_content  # noqa: E402
 from ui.components.discover import render_discover_page  # noqa: E402
 from ui.components.platform_tab import render_platform_tab  # noqa: E402
 
@@ -25,14 +32,21 @@ if "selected_draft_id" not in st.session_state:
     st.session_state.selected_draft_id = None
 
 
-def _author_profile() -> dict[str, str]:
-    topics = load_topics_config()
-    voice = topics.get("voice", {})
+def _author_profile(persona_id: str) -> dict[str, str]:
+    persona = get_persona(persona_id)
+    voice = persona.get("voice", {})
     return {
-        "name": os.environ.get("AUTHOR_NAME") or voice.get("author_name", "Your Name"),
-        "headline": os.environ.get("AUTHOR_HEADLINE", "Your Headline"),
+        "name": resolve_author_name(persona),
+        "headline": os.environ.get("AUTHOR_HEADLINE", voice.get("headline", "Your Headline")),
         "profile_pic_url": os.environ.get("AUTHOR_PROFILE_PIC_URL", ""),
     }
+
+
+def _persona_label(persona_id: str) -> str:
+    for persona in list_personas():
+        if persona["id"] == persona_id:
+            return persona["label"]
+    return persona_id
 
 
 def _pending_drafts():
@@ -40,9 +54,10 @@ def _pending_drafts():
 
 
 def _draft_label(record) -> str:
-    topic = record.Topic[:48] + ("…" if len(record.Topic) > 48 else "")
+    topic = record.Topic[:40] + ("…" if len(record.Topic) > 40 else "")
     date = record.CreatedAt[:10]
-    return f"{topic} · {date}"
+    persona = _persona_label(record.PersonaID)
+    return f"{topic} · {persona} · {date}"
 
 
 def _render_review_page(platforms_config: dict, enabled: list[str]) -> None:
@@ -73,7 +88,12 @@ def _render_review_page(platforms_config: dict, enabled: list[str]) -> None:
         st.error("Draft not found.")
         return
 
-    st.subheader(record.Topic)
+    header_cols = st.columns([3, 1])
+    with header_cols[0]:
+        st.subheader(record.Topic)
+    with header_cols[1]:
+        st.markdown(f"**{_persona_label(record.PersonaID)}**")
+
     meta_cols = st.columns(2)
     with meta_cols[0]:
         st.caption(f"Created {record.CreatedAt}")
@@ -83,7 +103,16 @@ def _render_review_page(platforms_config: dict, enabled: list[str]) -> None:
         else:
             st.caption(f"Source: {record.SourceType}")
 
-    profile = _author_profile()
+    if st.button("More personality", help="Re-draft all platforms with stronger voice"):
+        with st.spinner("Regenerating with more personality…"):
+            try:
+                regenerate_draft_content(post_id=record.PostID, personality_boost=True)
+                st.toast("Draft regenerated.")
+                st.rerun()
+            except RuntimeError as exc:
+                st.error(str(exc))
+
+    profile = _author_profile(record.PersonaID)
     tab_platforms = [p for p in enabled if p in record.Targets]
     if not tab_platforms:
         st.warning("This draft has no platform targets.")
