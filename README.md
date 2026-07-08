@@ -138,47 +138,21 @@ For LinkedIn OAuth, Ghost setup, and full walkthrough, see **[docs/SETUP.md](doc
 
 ## Configuration
 
-### `config/platforms.yaml`
+Local config files are **gitignored** (like `.env`). Copy the minimal schema templates and customize:
 
-Controls which platforms are enabled, where OAuth tokens are stored, and RSS feed sources.
-
-```yaml
-platforms:
-  linkedin:
-    enabled: true
-    token_file: data/tokens/linkedin.json
-  blog:
-    enabled: true
-    type: ghost
-    default_status: draft   # Ghost Admin draft — publish manually on the site
-
-rss_feeds:
-  - url: https://hnrss.org/frontpage
-    category: tech
+```bash
+cp config/personas.example.yaml config/personas.yaml
+cp config/platforms.example.yaml config/platforms.yaml
 ```
 
-### `config/personas.yaml`
+| File | Purpose |
+|------|---------|
+| `platforms.yaml` | Enabled platforms, RSS feeds, categories, Ghost template maps |
+| `personas.yaml` | Voice, personas (any ids), feed links, evergreen topics |
 
-Personas define voice, RSS sources, evergreen topics, and blog default tags. Switch personas in the Discover UI.
+Full field reference, examples, and voice tips: **[docs/SETUP.md §3](docs/SETUP.md#3-edit-config-files)**.
 
-```yaml
-default_persona: tech
-
-personas:
-  tech:
-    label: "Tech & Engineering"
-    voice:
-      author_name: Prateek Sharma
-      description: Direct, opinionated, practical…
-    rss_feed_keys: [hn, techcrunch, theverge]
-    evergreen_topics:
-      - Lessons from shipping side projects
-  gaming:
-    label: "Gaming & Nintendo"
-    rss_feed_keys: [ign, eurogamer, steam, nintendo_life, push_square]
-```
-
-Author name in prompts uses `AUTHOR_NAME` from `.env` when set, otherwise `author_name` from the active persona.
+`AUTHOR_NAME` in `.env` overrides `author_name` in LLM prompts.
 
 ### Environment variables
 
@@ -233,8 +207,10 @@ quillcast/
 │       └── blog_tab.py
 │
 ├── config/
-│   ├── personas.yaml
-│   └── platforms.yaml
+│   ├── personas.example.yaml   # committed template
+│   ├── personas.yaml           # local copy (gitignored)
+│   ├── platforms.example.yaml  # committed template
+│   └── platforms.yaml          # local copy (gitignored)
 │
 ├── data/                       # gitignored — drafts + tokens
 │   ├── drafts/

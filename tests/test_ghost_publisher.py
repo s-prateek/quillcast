@@ -72,7 +72,12 @@ def test_publish_games_tag_sets_custom_template(mock_http):
         PostContent(
             text="Body",
             platform="blog",
-            metadata={"title": "Switch picks", "tags": ["Games", "Nintendo"], "status": "draft"},
+            metadata={
+                "title": "Switch picks",
+                "tags": ["Games", "Nintendo"],
+                "status": "draft",
+                "ghost_custom_template": "custom-games",
+            },
         )
     )
     assert result.success is True
@@ -97,6 +102,7 @@ def test_publish_gaming_persona_sets_custom_template(mock_http):
                 "tags": ["Nintendo"],
                 "status": "draft",
                 "persona_id": "gaming",
+                "ghost_custom_template": "custom-games",
             },
         )
     )
