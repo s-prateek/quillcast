@@ -1,6 +1,5 @@
-
-from pathlib import Path
 import shutil
+from pathlib import Path
 
 from shared.config import enabled_platforms, load_platforms_config
 

@@ -29,9 +29,7 @@ def _load_config() -> dict[str, str]:
     admin_api_key = os.environ.get("GHOST_ADMIN_API_KEY", "").strip()
 
     if not url:
-        raise RuntimeError(
-            "Ghost URL not configured. Set GHOST_URL in .env (see .env.example)."
-        )
+        raise RuntimeError("Ghost URL not configured. Set GHOST_URL in .env (see .env.example).")
     if not admin_api_key or ":" not in admin_api_key:
         raise RuntimeError(
             "Ghost Admin API key not configured. Set GHOST_ADMIN_API_KEY in .env "
@@ -61,12 +59,8 @@ def make_ghost_jwt(admin_api_key: str, *, now: int | None = None) -> str:
         "aud": "/admin/",
     }
 
-    header_segment = _base64url_encode(
-        json.dumps(header, separators=(",", ":")).encode("utf-8")
-    )
-    payload_segment = _base64url_encode(
-        json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    )
+    header_segment = _base64url_encode(json.dumps(header, separators=(",", ":")).encode("utf-8"))
+    payload_segment = _base64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
     signing_input = f"{header_segment}.{payload_segment}".encode("utf-8")
     signature = HMAC(_secret_bytes(secret), signing_input, sha256).digest()
     signature_segment = _base64url_encode(signature)

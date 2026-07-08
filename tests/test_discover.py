@@ -1,6 +1,6 @@
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-import shutil
 from unittest.mock import patch
 
 from shared.discover import discover_topics

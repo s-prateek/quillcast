@@ -1,7 +1,3 @@
-from pathlib import Path
-
-import pytest
-
 from shared.publish import build_post_content
 
 

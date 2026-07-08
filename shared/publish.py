@@ -4,7 +4,12 @@ from datetime import datetime, timezone
 
 from publishers.registry import get
 from shared.blog_content import parse_blog_content
-from shared.config import enabled_platforms, load_platforms_config, resolve_ghost_custom_template, resolve_persona_id
+from shared.config import (
+    enabled_platforms,
+    load_platforms_config,
+    resolve_ghost_custom_template,
+    resolve_persona_id,
+)
 from shared.drafts import get_record, update_target_status
 from shared.models import PostContent
 
@@ -47,7 +52,9 @@ def archive_target(*, post_id: str, platform: str) -> None:
     )
 
 
-def build_post_content(*, platform: str, body: str, platform_config: dict, persona_id: str = "") -> PostContent:
+def build_post_content(
+    *, platform: str, body: str, platform_config: dict, persona_id: str = ""
+) -> PostContent:
     pid = resolve_persona_id(persona_id)
     if platform == "blog":
         parsed = parse_blog_content(body)

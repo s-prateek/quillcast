@@ -110,6 +110,7 @@ def test_publish_gaming_persona_sets_custom_template(mock_http):
     body = json.loads(mock_http.call_args.kwargs["body"].decode())
     assert body["posts"][0]["custom_template"] == "custom-games"
 
+
 @patch.dict(os.environ, GHOST_ENV, clear=False)
 @patch("publishers.blog.ghost._http_request")
 def test_publish_api_error(mock_http):

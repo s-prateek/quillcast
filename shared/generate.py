@@ -8,7 +8,6 @@ from typing import Any
 
 from shared.config import (
     enabled_platforms,
-    get_default_persona_id,
     get_persona,
     load_platforms_config,
     persona_voice_for_llm,
@@ -188,7 +187,9 @@ def regenerate_draft_content(*, post_id: str, personality_boost: bool = True) ->
     if record is None:
         raise RuntimeError(f"Draft not found: {post_id}")
 
-    content = record.SourceContent if record.SourceType == "custom" and record.SourceContent else None
+    content = (
+        record.SourceContent if record.SourceType == "custom" and record.SourceContent else None
+    )
     variants = _generate_variants_for_persona(
         persona_id=resolve_persona_id(record.PersonaID),
         topic=record.Topic,

@@ -55,7 +55,9 @@ def get_default_persona_id() -> str:
     config = load_personas_config()
     personas = config.get("personas", {})
     if not isinstance(personas, dict) or not personas:
-        raise RuntimeError("No personas defined. Add entries under personas: in config/personas.yaml")
+        raise RuntimeError(
+            "No personas defined. Add entries under personas: in config/personas.yaml"
+        )
 
     explicit = str(config.get("default_persona", "")).strip()
     if explicit and explicit in personas:
