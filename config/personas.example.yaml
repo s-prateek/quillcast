@@ -1,0 +1,19 @@
+# Schema template — see docs/SETUP.md §3. Copy: cp config/personas.example.yaml config/personas.yaml
+
+default_persona: default
+
+personas:
+  default:
+    label: Default
+    voice:
+      author_name: Your Name
+      description: How you write.
+      target_audience: Who you write for
+      avoid_phrases: []
+      voice_examples: []
+    rss_feed_keys:
+      - example
+    evergreen_topics: []
+    blog_defaults:
+      tags: []
+    curation_hint: ""

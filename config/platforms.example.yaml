@@ -1,0 +1,30 @@
+# Schema template — see docs/SETUP.md §3. Copy: cp config/platforms.example.yaml config/platforms.yaml
+
+rss_categories:
+  general:
+    label: General
+
+platforms:
+  linkedin:
+    enabled: false
+    token_file: data/tokens/linkedin.json
+  facebook:
+    enabled: false
+    token_file: data/tokens/facebook.json
+  blog:
+    enabled: false
+    type: ghost
+    default_status: draft
+    ghost_custom_templates:
+      by_tag: {}
+      by_persona: {}
+
+rss_feeds:
+  example:
+    url: https://example.com/feed.xml
+    category: general
+
+rss_filter:
+  min_article_age_hours: 1
+  max_article_age_hours: 48
+  max_articles_per_run: 5

@@ -29,9 +29,7 @@ def _load_config() -> dict[str, str]:
     admin_api_key = os.environ.get("GHOST_ADMIN_API_KEY", "").strip()
 
     if not url:
-        raise RuntimeError(
-            "Ghost URL not configured. Set GHOST_URL in .env (see .env.example)."
-        )
+        raise RuntimeError("Ghost URL not configured. Set GHOST_URL in .env (see .env.example).")
     if not admin_api_key or ":" not in admin_api_key:
         raise RuntimeError(
             "Ghost Admin API key not configured. Set GHOST_ADMIN_API_KEY in .env "
@@ -61,12 +59,8 @@ def make_ghost_jwt(admin_api_key: str, *, now: int | None = None) -> str:
         "aud": "/admin/",
     }
 
-    header_segment = _base64url_encode(
-        json.dumps(header, separators=(",", ":")).encode("utf-8")
-    )
-    payload_segment = _base64url_encode(
-        json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    )
+    header_segment = _base64url_encode(json.dumps(header, separators=(",", ":")).encode("utf-8"))
+    payload_segment = _base64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
     signing_input = f"{header_segment}.{payload_segment}".encode("utf-8")
     signature = HMAC(_secret_bytes(secret), signing_input, sha256).digest()
     signature_segment = _base64url_encode(signature)
@@ -99,14 +93,12 @@ def _ghost_tags(tags: list[str]) -> list[dict[str, str]]:
     return [{"name": tag} for tag in tags if tag.strip()]
 
 
-def _games_custom_template(tags: list[str], *, persona_id: str = "") -> str | None:
-    """Return Ghost custom_template when post should use the gaming layout."""
-    if persona_id.strip().lower() == "gaming":
-        return "custom-games"
-    for tag in tags:
-        if tag.strip().lower() == "games":
-            return "custom-games"
+def _resolve_custom_template(metadata: dict[str, Any], tags: list[str]) -> str | None:
+    explicit = metadata.get("ghost_custom_template")
+    if isinstance(explicit, str) and explicit.strip():
+        return explicit.strip()
     return None
+
 
 def ghost_admin_edit_url(site_url: str, post_uuid: str) -> str:
     return f"{_normalize_url(site_url)}/ghost/#/editor/post/{post_uuid}"
@@ -220,8 +212,7 @@ class GhostPublisher(Publisher):
             return PublishResult(success=False, error=f"Invalid Ghost post status: {status!r}")
 
         tag_list = tags if isinstance(tags, list) else []
-        persona_id = str(metadata.get("persona_id", "")).strip()
-        custom_template = _games_custom_template(tag_list, persona_id=persona_id)
+        custom_template = _resolve_custom_template(metadata, tag_list)
 
         constraints = self.get_constraints()
         char_limit = int(constraints["char_limit"])

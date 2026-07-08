@@ -70,7 +70,7 @@ class PostRecord:
     OverallStatus: str
     ContentVariants: dict[str, Any]
     Targets: dict[str, TargetRecord]
-    PersonaID: str = "tech"
+    PersonaID: str = ""
     SourceContent: str = ""
 
     def to_item(self) -> dict[str, Any]:
@@ -105,6 +105,6 @@ class PostRecord:
                 platform: TargetRecord.from_dict(target)
                 for platform, target in item["Targets"].items()
             },
-            PersonaID=str(item.get("PersonaID", "tech")),
+            PersonaID=str(item.get("PersonaID", "") or ""),
             SourceContent=str(item.get("SourceContent", "")),
         )

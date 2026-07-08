@@ -1,4 +1,6 @@
+import shutil
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import patch
 
 from shared.discover import discover_topics
@@ -7,7 +9,7 @@ from shared.rss import Article
 
 @patch("shared.discover.curate_topic_candidates")
 @patch("shared.discover.fetch_articles")
-def test_discover_topics_uses_llm_when_available(mock_fetch, mock_curate):
+def test_discover_topics_uses_llm_when_available(mock_fetch, mock_curate, monkeypatch, tmp_path):
     mock_fetch.return_value = [
         Article(
             title="AI news",
@@ -28,7 +30,12 @@ def test_discover_topics_uses_llm_when_available(mock_fetch, mock_curate):
         )
     ]
 
-    topics = discover_topics(persona_id="tech", use_llm=True)
+    repo_config = Path(__file__).resolve().parent.parent / "config"
+    shutil.copy(repo_config / "personas.example.yaml", tmp_path / "personas.example.yaml")
+    shutil.copy(repo_config / "platforms.example.yaml", tmp_path / "platforms.example.yaml")
+    monkeypatch.setenv("QUILLCAST_CONFIG_DIR", str(tmp_path))
+
+    topics = discover_topics(persona_id="default", use_llm=True)
     assert len(topics) == 1
     assert topics[0].title == "AI news"
     mock_curate.assert_called_once()
@@ -36,7 +43,7 @@ def test_discover_topics_uses_llm_when_available(mock_fetch, mock_curate):
 
 @patch("shared.discover.curate_topic_candidates")
 @patch("shared.discover.fetch_articles")
-def test_discover_topics_falls_back_when_llm_fails(mock_fetch, mock_curate):
+def test_discover_topics_falls_back_when_llm_fails(mock_fetch, mock_curate, monkeypatch, tmp_path):
     mock_fetch.return_value = [
         Article(
             title="Fallback story",
@@ -47,6 +54,11 @@ def test_discover_topics_falls_back_when_llm_fails(mock_fetch, mock_curate):
     ]
     mock_curate.side_effect = RuntimeError("LLM unavailable")
 
-    topics = discover_topics(persona_id="tech", use_llm=True)
+    repo_config = Path(__file__).resolve().parent.parent / "config"
+    shutil.copy(repo_config / "personas.example.yaml", tmp_path / "personas.example.yaml")
+    shutil.copy(repo_config / "platforms.example.yaml", tmp_path / "platforms.example.yaml")
+    monkeypatch.setenv("QUILLCAST_CONFIG_DIR", str(tmp_path))
+
+    topics = discover_topics(persona_id="default", use_llm=True)
     assert topics[0].title == "Fallback story"
     assert topics[0].source_type == "rss"

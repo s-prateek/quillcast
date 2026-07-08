@@ -21,7 +21,7 @@ def _init_session_state() -> None:
 def _persona_selector() -> str:
     personas = list_personas()
     if not personas:
-        return "tech"
+        raise RuntimeError("No personas configured. Add entries to config/personas.yaml")
 
     options = {p["id"]: p["label"] for p in personas}
     current = st.session_state.active_persona_id

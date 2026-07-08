@@ -40,35 +40,54 @@ Get keys from:
 
 ## 3. Edit config files
 
-### `config/personas.yaml`
+Local copies (gitignored) — run once after clone:
 
-Set personas (voice, RSS feed keys, evergreen topics, blog tags). Example:
-
-```yaml
-default_persona: tech
-
-personas:
-  tech:
-    label: "Tech & Engineering"
-    voice:
-      author_name: Prateek Sharma
-      description: Direct, opinionated, practical.
-      target_audience: Software engineers and tech leads
-    rss_feed_keys: [hn, techcrunch, theverge]
-    evergreen_topics:
-      - Lessons from shipping side projects
-  gaming:
-    label: "Gaming & Nintendo"
-    rss_feed_keys: [ign, eurogamer, steam, nintendo_life, push_square]
+```bash
+cp config/personas.example.yaml config/personas.yaml
+cp config/platforms.example.yaml config/platforms.yaml
 ```
 
-`AUTHOR_NAME` in `.env` overrides `author_name` in prompts when set.
+The committed `*.example.yaml` files are **minimal schemas** only. Customize your local copies using the reference below.
 
-### `config/platforms.yaml`
+`AUTHOR_NAME` in `.env` overrides `author_name` in LLM prompts when set.
 
-Enable platforms and RSS feeds. LinkedIn and blog (Ghost) can run side by side:
+If a local file is missing, Quillcast falls back to the matching `*.example.yaml` so a fresh clone still runs.
+
+**Personal backup (optional):** keep copies outside git in `config/local-backup/` (gitignored). Restore with:
+
+```bash
+cp config/local-backup/personas.yaml config/personas.yaml
+cp config/local-backup/platforms.yaml config/platforms.yaml
+```
+
+---
+
+### `config/platforms.yaml` — schema reference
+
+| Key | Required | Description |
+|-----|----------|-------------|
+| `rss_categories` | No | Map of category id → `{ label }`. Use any ids you want (`tech`, `gaming`, `finance`, …). |
+| `platforms.<name>.enabled` | Yes | `true` to generate/publish for that platform. Enable at least one for drafting. |
+| `platforms.<name>.token_file` | For OAuth platforms | Path to token JSON (e.g. `data/tokens/linkedin.json`). |
+| `platforms.blog.type` | For blog | Set to `ghost`. |
+| `platforms.blog.default_status` | For blog | `draft` or `published`. |
+| `platforms.blog.ghost_custom_templates.by_tag` | No | Map tag name → Ghost template slug (e.g. `Games: custom-games`). |
+| `platforms.blog.ghost_custom_templates.by_persona` | No | Map persona id → Ghost template slug. |
+| `rss_feeds.<key>.url` | Yes | RSS/Atom feed URL. |
+| `rss_feeds.<key>.category` | Yes | Category id (must match `rss_categories` or any id used in personas). |
+| `rss_filter.min_article_age_hours` | No | Skip articles newer than this (default `1`). |
+| `rss_filter.max_article_age_hours` | No | Skip articles older than this (default `48`). |
+| `rss_filter.max_articles_per_run` | No | Cap articles fetched per run (default `5`). |
+
+**Example — enable LinkedIn + Ghost, two feed categories:**
 
 ```yaml
+rss_categories:
+  tech:
+    label: Technology
+  gaming:
+    label: Gaming
+
 platforms:
   linkedin:
     enabled: true
@@ -77,7 +96,105 @@ platforms:
     enabled: true
     type: ghost
     default_status: draft
+    ghost_custom_templates:
+      by_tag:
+        Games: custom-games
+
+rss_feeds:
+  hn:
+    url: https://hnrss.org/frontpage
+    category: tech
+  ign:
+    url: https://feeds.feedburner.com/ign/all
+    category: gaming
 ```
+
+---
+
+### `config/personas.yaml` — schema reference
+
+Add **any number** of personas under `personas:` — the key is the persona id (shown in the Discover UI).
+
+| Key | Required | Description |
+|-----|----------|-------------|
+| `default_persona` | Yes | Id of the persona selected by default. |
+| `personas.<id>.label` | Yes | Display name in the UI. |
+| `voice.author_name` | Yes | Used in prompts (overridden by `AUTHOR_NAME` in `.env`). |
+| `voice.description` | Yes | Voice rules: tone, structure, opinion style, what to avoid. Be specific and behavioral, not just adjectives. |
+| `voice.target_audience` | Yes | Who the post is for. |
+| `voice.avoid_phrases` | No | Banned phrases and AI tells (e.g. "Let's dive in", "game-changer"). |
+| `voice.voice_examples` | No | 1–2 short samples of **your** writing. The model uses the first two only — use your best real posts. |
+| `rss_feed_keys` | No* | Explicit feed keys from `platforms.yaml`. |
+| `rss_categories` | No* | Include all feeds in these categories. |
+| `evergreen_topics` | No* | Fallback topic ideas when RSS is empty. |
+| `blog_defaults.tags` | No | Default Ghost tags merged into blog drafts. |
+| `blog_defaults.ghost_custom_template` | No | Ghost theme template slug for this persona (overrides `by_tag` / `by_persona`). |
+| `curation_hint` | No | Extra guidance for the Discover topic-curation LLM call. |
+
+\*Each persona needs at least one of: `rss_feed_keys`, `rss_categories`, or non-empty `evergreen_topics`.
+
+**Linking feeds:** use `rss_feed_keys`, `rss_categories`, or both (union). Categories are defined in `platforms.yaml`.
+
+**Example — two personas, different voices:**
+
+```yaml
+default_persona: tech
+
+personas:
+  tech:
+    label: Tech & Engineering
+    voice:
+      author_name: Your Name
+      description: >
+        First person. Short paragraphs. Name specific tools and tradeoffs.
+        State your opinion early. End with a real question, not filler.
+      target_audience: Software engineers and tech leads
+      avoid_phrases:
+        - "Let's dive in"
+        - "game-changer"
+        - "leverage"
+      voice_examples:
+        - >
+            We moved integration tests off the main deploy path. Deploy time
+            dropped 40%. Nobody wanted to own staging until prod broke twice.
+    rss_categories:
+      - tech
+    evergreen_topics:
+      - A tool that failed me and what I use instead
+    blog_defaults:
+      tags: [AI, Engineering]
+    curation_hint: Practitioner angles, shipping lessons — skip launch hype.
+
+  gaming:
+    label: Gaming
+    voice:
+      author_name: Your Name
+      description: >
+        A player, not a critic. What you're playing, worth it or skip,
+        platform frustrations. Name the game and platform.
+      target_audience: Gamers
+      avoid_phrases:
+        - "must-play masterpiece"
+        - "gamers rejoice"
+      voice_examples:
+        - >
+            Finished the game last week. Fifteen hours in I still hadn't touched
+            the main quest. Worth it if you like sandbox more than story.
+    rss_categories:
+      - gaming
+    evergreen_topics:
+      - What I'm playing this week and whether it's worth your time
+    blog_defaults:
+      tags: [Games]
+      ghost_custom_template: custom-games
+```
+
+**Tips for authentic voice**
+
+- Put **real posts** in `voice_examples` (LinkedIn, blog) — trimmed, no hashtag spam.
+- `description` should be rules the model can follow ("first person", "name companies", "blunt when broken").
+- `evergreen_topics` work best as **your** story hooks, not generic titles.
+- Use **More personality** in Review to re-draft with stronger voice.
 
 ---
 

@@ -8,10 +8,10 @@ from typing import Any
 
 from shared.config import (
     enabled_platforms,
-    get_default_persona_id,
     get_persona,
     load_platforms_config,
     persona_voice_for_llm,
+    resolve_persona_id,
     rss_feeds_for_persona,
 )
 from shared.drafts import draft_targets_for_platforms, get_record, put_record
@@ -127,7 +127,7 @@ def generate_post_for_topic(
     persona_id: str | None = None,
 ) -> dict[str, Any]:
     """LLM call #2 — generate platform variants for a user-selected topic."""
-    pid = (persona_id or get_default_persona_id()).strip()
+    pid = resolve_persona_id(persona_id)
     content_variants = _generate_variants_for_persona(
         persona_id=pid,
         topic=topic,
@@ -187,9 +187,11 @@ def regenerate_draft_content(*, post_id: str, personality_boost: bool = True) ->
     if record is None:
         raise RuntimeError(f"Draft not found: {post_id}")
 
-    content = record.SourceContent if record.SourceType == "custom" and record.SourceContent else None
+    content = (
+        record.SourceContent if record.SourceType == "custom" and record.SourceContent else None
+    )
     variants = _generate_variants_for_persona(
-        persona_id=record.PersonaID,
+        persona_id=resolve_persona_id(record.PersonaID),
         topic=record.Topic,
         source_url=record.SourceURL,
         source_type=record.SourceType,
@@ -210,7 +212,7 @@ def regenerate_draft_content(*, post_id: str, personality_boost: bool = True) ->
 
 def generate_post(*, persona_id: str | None = None) -> dict[str, Any]:
     """CLI convenience — auto-picks the newest RSS article or a random evergreen topic."""
-    pid = (persona_id or get_default_persona_id()).strip()
+    pid = resolve_persona_id(persona_id)
     platforms_config = load_platforms_config()
     topic, source_url, source_type = _select_topic(platforms_config, pid)
     return generate_post_for_topic(
