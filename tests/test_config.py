@@ -2,8 +2,6 @@ import shutil
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from shared.config import (
     default_platforms_for_persona,
     enabled_platforms,
@@ -11,7 +9,7 @@ from shared.config import (
     persona_platforms,
 )
 from shared.drafts import delete_record, get_record, put_record
-from shared.generate import generate_post_for_topic, generate_platform_content
+from shared.generate import generate_platform_content, generate_post_for_topic
 from shared.models import PostRecord, TargetRecord
 
 
