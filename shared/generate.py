@@ -7,16 +7,18 @@ from datetime import datetime, timezone
 from typing import Any
 
 from shared.config import (
+    default_platforms_for_persona,
     enabled_platforms,
     get_persona,
     load_platforms_config,
+    persona_platforms,
     persona_voice_for_llm,
     resolve_persona_id,
     rss_feeds_for_persona,
 )
 from shared.drafts import draft_targets_for_platforms, get_record, put_record
 from shared.llm import generate_content_variants
-from shared.models import PostRecord
+from shared.models import PostRecord, TargetRecord
 from shared.rss import fetch_articles
 
 logger = logging.getLogger(__name__)
@@ -85,9 +87,11 @@ def _generate_variants_for_persona(
     source_type: str,
     content: str | None = None,
     personality_boost: bool = False,
+    platforms: list[str] | None = None,
 ) -> dict[str, Any]:
     platforms_config = load_platforms_config()
-    platforms = enabled_platforms(platforms_config)
+    if platforms is None:
+        platforms = enabled_platforms(platforms_config)
     if not platforms:
         raise RuntimeError("No platforms are enabled in config/platforms.yaml")
 
@@ -106,6 +110,12 @@ def _generate_variants_for_persona(
     _merge_blog_tags(variants, _blog_default_tags(persona))
     _embed_pull_quote(variants)
     return variants
+
+
+def _source_content_for_record(record: PostRecord) -> str | None:
+    if record.SourceType == "custom" and record.SourceContent:
+        return record.SourceContent
+    return None
 
 
 def _embed_pull_quote(content_variants: dict[str, Any]) -> None:
@@ -128,12 +138,17 @@ def generate_post_for_topic(
 ) -> dict[str, Any]:
     """LLM call #2 — generate platform variants for a user-selected topic."""
     pid = resolve_persona_id(persona_id)
+    initial_platforms = default_platforms_for_persona(pid)
+    if not initial_platforms:
+        raise RuntimeError("No platforms configured for this persona")
+
     content_variants = _generate_variants_for_persona(
         persona_id=pid,
         topic=topic,
         source_url=source_url,
         source_type=source_type,
         content=content,
+        platforms=initial_platforms,
     )
 
     now = _utc_now()
@@ -148,7 +163,7 @@ def generate_post_for_topic(
         PersonaID=pid,
         OverallStatus="PENDING",
         ContentVariants=content_variants,
-        Targets=draft_targets_for_platforms(enabled_platforms(load_platforms_config())),
+        Targets=draft_targets_for_platforms(persona_platforms(pid)),
     )
     put_record(record)
 
@@ -158,7 +173,7 @@ def generate_post_for_topic(
         "topic": record.Topic,
         "source_type": record.SourceType,
         "persona_id": record.PersonaID,
-        "platforms": list(record.Targets.keys()),
+        "platforms": list(record.ContentVariants.keys()),
     }
 
 
@@ -182,25 +197,30 @@ def generate_post_from_idea(
 
 
 def regenerate_draft_content(*, post_id: str, personality_boost: bool = True) -> dict[str, Any]:
-    """Re-run LLM generation for an existing draft; clears per-platform edits."""
+    """Re-run LLM generation for platforms that already have drafts; clears per-platform edits."""
     record = get_record(post_id)
     if record is None:
         raise RuntimeError(f"Draft not found: {post_id}")
 
-    content = (
-        record.SourceContent if record.SourceType == "custom" and record.SourceContent else None
-    )
+    platforms = list(record.ContentVariants.keys())
+    if not platforms:
+        raise RuntimeError("No platform drafts to regenerate")
+
     variants = _generate_variants_for_persona(
         persona_id=resolve_persona_id(record.PersonaID),
         topic=record.Topic,
         source_url=record.SourceURL,
         source_type=record.SourceType,
-        content=content,
+        content=_source_content_for_record(record),
         personality_boost=personality_boost,
+        platforms=platforms,
     )
 
-    record.ContentVariants = variants
-    for target in record.Targets.values():
+    record.ContentVariants.update(variants)
+    for platform in platforms:
+        target = record.Targets.get(platform)
+        if target is None:
+            continue
         target.EditedContent = None
         if target.Status == "DRAFT":
             target.ErrorLog = None
@@ -208,6 +228,85 @@ def regenerate_draft_content(*, post_id: str, personality_boost: bool = True) ->
     put_record(record)
 
     return {"post_id": post_id, "persona_id": record.PersonaID}
+
+
+def generate_platform_content(
+    *,
+    post_id: str,
+    platform: str,
+    personality_boost: bool = False,
+) -> dict[str, Any]:
+    """Generate content for a single platform on demand (e.g. when opening a tab)."""
+    record = get_record(post_id)
+    if record is None:
+        raise RuntimeError(f"Draft not found: {post_id}")
+
+    allowed = persona_platforms(record.PersonaID)
+    if platform not in allowed:
+        raise RuntimeError(f"Platform {platform!r} is not configured for this persona")
+
+    if platform not in record.Targets:
+        record.Targets[platform] = TargetRecord()
+
+    variants = _generate_variants_for_persona(
+        persona_id=resolve_persona_id(record.PersonaID),
+        topic=record.Topic,
+        source_url=record.SourceURL,
+        source_type=record.SourceType,
+        content=_source_content_for_record(record),
+        personality_boost=personality_boost,
+        platforms=[platform],
+    )
+
+    record.ContentVariants[platform] = variants[platform]
+    target = record.Targets[platform]
+    target.EditedContent = None
+    if target.Status == "DRAFT":
+        target.ErrorLog = None
+    record.UpdatedAt = _utc_now()
+    put_record(record)
+
+    return {"post_id": post_id, "platform": platform}
+
+
+def update_draft_source(
+    *,
+    post_id: str,
+    idea: str,
+    title: str | None = None,
+) -> dict[str, Any]:
+    """Update the author's custom idea on an existing draft."""
+    record = get_record(post_id)
+    if record is None:
+        raise RuntimeError(f"Draft not found: {post_id}")
+    if record.SourceType != "custom":
+        raise RuntimeError("Only custom-idea drafts can be updated this way")
+
+    idea = idea.strip()
+    if not idea:
+        raise RuntimeError("Idea cannot be empty")
+
+    record.SourceContent = idea
+    if title and title.strip():
+        record.Topic = title.strip()
+    else:
+        record.Topic = _topic_label_from_idea(idea)
+    record.UpdatedAt = _utc_now()
+    put_record(record)
+    return {"post_id": post_id, "topic": record.Topic}
+
+
+def regenerate_draft_from_source(
+    *,
+    post_id: str,
+    idea: str | None = None,
+    title: str | None = None,
+    personality_boost: bool = False,
+) -> dict[str, Any]:
+    """Update source idea (optional) and regenerate all existing platform drafts."""
+    if idea is not None:
+        update_draft_source(post_id=post_id, idea=idea, title=title)
+    return regenerate_draft_content(post_id=post_id, personality_boost=personality_boost)
 
 
 def generate_post(*, persona_id: str | None = None) -> dict[str, Any]:

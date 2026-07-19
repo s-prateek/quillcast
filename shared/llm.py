@@ -1,24 +1,49 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import urllib.error
 import urllib.request
 from typing import Any
 
+from shared.config import (
+    get_llm_provider,
+    resolve_model_attempt_order,
+)
+from shared.preferences import get_selected_model_id
+
 MAX_ATTEMPTS = 2
 
-DEFAULT_CLAUDE_MODEL = "claude-3-5-haiku-latest"
-DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+logger = logging.getLogger(__name__)
 
-# Google 2.5 "-latest" aliases often 404 on the REST API; use stable base names.
+# Google "-latest" aliases often 404 on the REST API; map to stable model ids.
 _GEMINI_MODEL_ALIASES = {
+    "gemini-3.5-flash-latest": "gemini-3.5-flash",
+    "gemini-3-flash-latest": "gemini-3-flash-preview",
     "gemini-2.5-flash-latest": "gemini-2.5-flash",
     "gemini-2.5-pro-latest": "gemini-2.5-pro",
-    "gemini-flash-latest": "gemini-2.5-flash",
+    "gemini-flash-latest": "gemini-3.5-flash",
     "gemini-pro-latest": "gemini-2.5-pro",
 }
+
+_RATE_LIMIT_CODES = {429, 503, 529}
+
+
+class LLMAPIError(RuntimeError):
+    def __init__(self, status_code: int, detail: str):
+        self.status_code = status_code
+        self.detail = detail
+        super().__init__(f"LLM API error {status_code}: {detail}")
+
+
+_last_invocation: dict[str, Any] = {}
+
+
+def last_invocation() -> dict[str, Any]:
+    """Metadata from the most recent successful LLM call."""
+    return dict(_last_invocation)
 
 
 def _normalize_gemini_model(model: str) -> str:
@@ -28,22 +53,22 @@ def _normalize_gemini_model(model: str) -> str:
     return normalized
 
 
-def _provider() -> str:
-    name = os.environ.get("LLM_PROVIDER", "claude").strip().lower()
-    if name not in {"claude", "gemini"}:
-        raise RuntimeError(f"Unsupported LLM_PROVIDER: {name!r} (use 'claude' or 'gemini')")
-    return name
+def _provider_has_credentials(provider: str) -> bool:
+    if provider == "claude":
+        return bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
+    if provider == "gemini":
+        return bool(os.environ.get("GEMINI_API_KEY", "").strip())
+    return False
 
 
-def _model_id() -> str:
-    override = os.environ.get("LLM_MODEL", "").strip()
-    if _provider() == "gemini":
-        if override:
-            return _normalize_gemini_model(override)
-        return DEFAULT_GEMINI_MODEL
-    if override:
-        return override
-    return DEFAULT_CLAUDE_MODEL
+def _is_rate_limit_error(exc: Exception) -> bool:
+    if isinstance(exc, LLMAPIError):
+        return exc.status_code in _RATE_LIMIT_CODES
+    message = str(exc)
+    return any(
+        token in message
+        for token in (" 429", " 503", " 529", "RESOURCE_EXHAUSTED", "rate limit", "Rate limit")
+    )
 
 
 def _voice_prompt_sections(voice: dict[str, Any], *, personality_boost: bool = False) -> str:
@@ -163,10 +188,10 @@ def _http_post_json(url: str, headers: dict[str, str], body: dict[str, Any]) -> 
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"LLM API error {exc.code}: {detail}") from exc
+        raise LLMAPIError(exc.code, detail) from exc
 
 
-def _invoke_claude(*, system_prompt: str, user_prompt: str) -> str:
+def _invoke_claude(*, model: str, system_prompt: str, user_prompt: str) -> str:
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("ANTHROPIC_API_KEY is not set")
@@ -178,7 +203,7 @@ def _invoke_claude(*, system_prompt: str, user_prompt: str) -> str:
             "anthropic-version": "2023-06-01",
         },
         body={
-            "model": _model_id(),
+            "model": model,
             "max_tokens": 4096,
             "system": system_prompt,
             "messages": [{"role": "user", "content": user_prompt}],
@@ -187,14 +212,14 @@ def _invoke_claude(*, system_prompt: str, user_prompt: str) -> str:
     return payload["content"][0]["text"]
 
 
-def _invoke_gemini(*, system_prompt: str, user_prompt: str) -> str:
+def _invoke_gemini(*, model: str, system_prompt: str, user_prompt: str) -> str:
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not set")
 
-    model = _model_id()
+    normalized = _normalize_gemini_model(model)
     url = (
-        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        f"https://generativelanguage.googleapis.com/v1beta/models/{normalized}:generateContent"
         f"?key={api_key}"
     )
     payload = _http_post_json(
@@ -209,10 +234,73 @@ def _invoke_gemini(*, system_prompt: str, user_prompt: str) -> str:
     return payload["candidates"][0]["content"]["parts"][0]["text"]
 
 
-def _invoke_once(*, system_prompt: str, user_prompt: str) -> str:
-    if _provider() == "claude":
-        return _invoke_claude(system_prompt=system_prompt, user_prompt=user_prompt)
-    return _invoke_gemini(system_prompt=system_prompt, user_prompt=user_prompt)
+def _invoke_provider_model(
+    *,
+    provider: str,
+    model: str,
+    system_prompt: str,
+    user_prompt: str,
+) -> str:
+    if provider == "claude":
+        return _invoke_claude(model=model, system_prompt=system_prompt, user_prompt=user_prompt)
+    if provider == "gemini":
+        return _invoke_gemini(model=model, system_prompt=system_prompt, user_prompt=user_prompt)
+    raise RuntimeError(f"Unsupported LLM provider: {provider!r}")
+
+
+def _invoke_with_model_fallback(*, system_prompt: str, user_prompt: str) -> str:
+    global _last_invocation
+
+    preferred = get_selected_model_id()
+    attempts = resolve_model_attempt_order(
+        provider=get_llm_provider(),
+        preferred_model=preferred or None,
+    )
+
+    rate_limited: list[str] = []
+    last_error: Exception | None = None
+
+    for provider, model in attempts:
+        if not _provider_has_credentials(provider):
+            continue
+        try:
+            text = _invoke_provider_model(
+                provider=provider,
+                model=model,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+            )
+            if rate_limited:
+                logger.warning(
+                    "LLM rate limited on %s — succeeded with %s/%s",
+                    ", ".join(rate_limited),
+                    provider,
+                    model,
+                )
+            _last_invocation = {
+                "provider": provider,
+                "model": model,
+                "fallback_used": bool(rate_limited),
+                "rate_limited_attempts": list(rate_limited),
+            }
+            return text
+        except Exception as exc:
+            last_error = exc
+            if _is_rate_limit_error(exc):
+                rate_limited.append(f"{provider}/{model}")
+                logger.warning("LLM rate limited on %s/%s, trying next model", provider, model)
+                continue
+            raise
+
+    if rate_limited:
+        raise RuntimeError(
+            "All configured models are rate limited. Tried: "
+            + ", ".join(rate_limited)
+            + ". Wait a few minutes or switch model in the sidebar."
+        ) from last_error
+    if last_error:
+        raise last_error
+    raise RuntimeError("No LLM credentials configured for any provider in the model chain.")
 
 
 def generate_content_variants(
@@ -241,7 +329,7 @@ def generate_content_variants(
     last_error: Exception | None = None
     for _ in range(MAX_ATTEMPTS):
         try:
-            text = _invoke_once(system_prompt=system_prompt, user_prompt=user_prompt)
+            text = _invoke_with_model_fallback(system_prompt=system_prompt, user_prompt=user_prompt)
             variants = extract_json(text)
             missing = [platform for platform in enabled_platforms if platform not in variants]
             if missing:
@@ -263,7 +351,8 @@ def curate_topic_candidates(
     evergreen_topics: list[str],
     voice: dict[str, Any],
     persona: dict[str, Any] | None = None,
-    max_topics: int = 8,
+    max_topics: int = 12,
+    exclude_titles: list[str] | None = None,
 ) -> list[Any]:
     """LLM call #1 — rank RSS + evergreen into post-worthy topic cards."""
     from shared.models import TopicCandidate
@@ -284,6 +373,16 @@ def curate_topic_candidates(
 
     evergreen_lines = [f'- {topic!r}' for topic in evergreen_topics]
 
+    exclude_block = ""
+    if exclude_titles:
+        excluded = [title.strip() for title in exclude_titles if title.strip()]
+        if excluded:
+            exclude_block = (
+                "\nDo not repeat these topics already shown to the author:\n"
+                + "\n".join(f"- {title}" for title in excluded)
+                + "\n"
+            )
+
     hint_block = f"\nEditorial angle: {curation_hint}\n" if curation_hint else ""
     system_prompt = (
         f"You are an editorial assistant for {author_name}. "
@@ -298,6 +397,7 @@ def curate_topic_candidates(
         + ("\n".join(article_lines) if article_lines else "(none)")
         + "\n\nEvergreen ideas:\n"
         + ("\n".join(evergreen_lines) if evergreen_lines else "(none)")
+        + exclude_block
         + "\n\nReturn JSON only:\n"
         "{\n"
         '  "topics": [\n'
@@ -315,7 +415,7 @@ def curate_topic_candidates(
     last_error: Exception | None = None
     for _ in range(MAX_ATTEMPTS):
         try:
-            text = _invoke_once(system_prompt=system_prompt, user_prompt=user_prompt)
+            text = _invoke_with_model_fallback(system_prompt=system_prompt, user_prompt=user_prompt)
             payload = extract_json(text)
             raw_topics = payload.get("topics", payload if isinstance(payload, list) else [])
             candidates: list[TopicCandidate] = []

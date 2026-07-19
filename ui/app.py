@@ -10,16 +10,22 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from shared.config import (  # noqa: E402
-    enabled_platforms,
     get_persona,
     list_personas,
     load_platforms_config,
+    persona_platforms,
     resolve_author_name,
 )
-from shared.drafts import get_record, list_records  # noqa: E402
+from shared.drafts import delete_record, get_record, list_records  # noqa: E402
 from shared.env import load_project_env  # noqa: E402
-from shared.generate import regenerate_draft_content  # noqa: E402
+from shared.generate import (  # noqa: E402
+    generate_platform_content,
+    regenerate_draft_content,
+    regenerate_draft_from_source,
+    update_draft_source,
+)
 from ui.components.discover import render_discover_page  # noqa: E402
+from ui.components.llm_selector import notify_llm_fallback, render_llm_model_selector  # noqa: E402
 from ui.components.platform_tab import render_platform_tab  # noqa: E402
 
 load_project_env()
@@ -30,6 +36,8 @@ if "page" not in st.session_state:
     st.session_state.page = "Discover"
 if "selected_draft_id" not in st.session_state:
     st.session_state.selected_draft_id = None
+if "confirm_delete_draft_id" not in st.session_state:
+    st.session_state.confirm_delete_draft_id = None
 
 
 def _author_profile(persona_id: str) -> dict[str, str]:
@@ -60,7 +68,95 @@ def _draft_label(record) -> str:
     return f"{topic} · {persona} · {date}"
 
 
-def _render_review_page(platforms_config: dict, enabled: list[str]) -> None:
+def _delete_draft(post_id: str) -> None:
+    if delete_record(post_id):
+        if st.session_state.selected_draft_id == post_id:
+            st.session_state.selected_draft_id = None
+        st.session_state.confirm_delete_draft_id = None
+        st.toast("Draft deleted.")
+        st.rerun()
+    st.error("Draft not found.")
+
+
+def _render_custom_idea_editor(record) -> None:
+    with st.expander("Your idea", expanded=False):
+        st.caption("Correct the source idea and regenerate drafts if the AI misunderstood.")
+        idea = st.text_area(
+            "Source idea",
+            value=record.SourceContent,
+            height=160,
+            key=f"review-idea-{record.PostID}",
+            label_visibility="collapsed",
+        )
+        title = st.text_input(
+            "Draft title (optional)",
+            value=record.Topic,
+            key=f"review-idea-title-{record.PostID}",
+        )
+
+        regen_cols = st.columns(2)
+        with regen_cols[0]:
+            if st.button(
+                "Regenerate from updated idea",
+                key=f"regen-idea-{record.PostID}",
+                use_container_width=True,
+            ):
+                if not idea.strip():
+                    st.warning("Idea cannot be empty.")
+                else:
+                    with st.spinner("Regenerating drafts from your updated idea…"):
+                        try:
+                            regenerate_draft_from_source(
+                                post_id=record.PostID,
+                                idea=idea,
+                                title=title.strip() or None,
+                            )
+                            notify_llm_fallback()
+                            st.toast("Drafts regenerated.")
+                            st.rerun()
+                        except RuntimeError as exc:
+                            st.error(str(exc))
+
+        with regen_cols[1]:
+            if st.button(
+                "Save idea only",
+                key=f"save-idea-{record.PostID}",
+                use_container_width=True,
+            ):
+                if not idea.strip():
+                    st.warning("Idea cannot be empty.")
+                else:
+                    try:
+                        update_draft_source(
+                            post_id=record.PostID,
+                            idea=idea,
+                            title=title.strip() or None,
+                        )
+                        st.toast("Idea saved.")
+                        st.rerun()
+                    except RuntimeError as exc:
+                        st.error(str(exc))
+
+
+def _render_ungenerated_platform_tab(record, platform: str) -> None:
+    st.info(f"No {platform} draft yet. Generate one when you're ready.")
+    if st.button(
+        f"Generate {platform} draft",
+        key=f"generate-{record.PostID}-{platform}",
+        type="primary",
+        use_container_width=True,
+    ):
+        with st.spinner(f"Generating {platform} draft…"):
+            try:
+                generate_platform_content(post_id=record.PostID, platform=platform)
+                notify_llm_fallback()
+                st.toast(f"{platform.capitalize()} draft generated.")
+                st.rerun()
+            except RuntimeError as exc:
+                st.error(str(exc))
+
+
+def _render_review_page(platforms_config: dict) -> None:
     pending = _pending_drafts()
 
     with st.sidebar:
@@ -83,6 +179,21 @@ def _render_review_page(platforms_config: dict, enabled: list[str]) -> None:
         )
         st.session_state.selected_draft_id = selected_id
 
+        st.divider()
+        if st.session_state.confirm_delete_draft_id == selected_id:
+            st.warning("Delete this draft permanently?")
+            confirm_cols = st.columns(2)
+            with confirm_cols[0]:
+                if st.button("Yes, delete", key="confirm-delete-draft", type="primary"):
+                    _delete_draft(selected_id)
+            with confirm_cols[1]:
+                if st.button("Cancel", key="cancel-delete-draft"):
+                    st.session_state.confirm_delete_draft_id = None
+                    st.rerun()
+        elif st.button("Delete draft", key="delete-draft-btn"):
+            st.session_state.confirm_delete_draft_id = selected_id
+            st.rerun()
+
     record = get_record(selected_id)
     if record is None:
         st.error("Draft not found.")
@@ -103,24 +214,41 @@ def _render_review_page(platforms_config: dict, enabled: list[str]) -> None:
         else:
             st.caption(f"Source: {record.SourceType}")
 
-    if st.button("More personality", help="Re-draft all platforms with stronger voice"):
-        with st.spinner("Regenerating with more personality…"):
-            try:
-                regenerate_draft_content(post_id=record.PostID, personality_boost=True)
-                st.toast("Draft regenerated.")
-                st.rerun()
-            except RuntimeError as exc:
-                st.error(str(exc))
+    if record.SourceType == "custom":
+        _render_custom_idea_editor(record)
+
+    action_cols = st.columns([1, 3])
+    with action_cols[0]:
+        if st.button("More personality", help="Re-draft generated platforms with stronger voice"):
+            with st.spinner("Regenerating with more personality…"):
+                try:
+                    regenerate_draft_content(post_id=record.PostID, personality_boost=True)
+                    notify_llm_fallback()
+                    st.toast("Draft regenerated.")
+                    st.rerun()
+                except RuntimeError as exc:
+                    st.error(str(exc))
 
     profile = _author_profile(record.PersonaID)
-    tab_platforms = [p for p in enabled if p in record.Targets]
+    persona_enabled = persona_platforms(record.PersonaID)
+    tab_platforms = [platform for platform in persona_enabled if platform in record.Targets]
     if not tab_platforms:
         st.warning("This draft has no platform targets.")
         return
 
-    tabs = st.tabs([p.capitalize() for p in tab_platforms])
+    def _tab_label(platform: str) -> str:
+        label = platform.capitalize()
+        if platform not in record.ContentVariants:
+            return f"{label} · not generated"
+        return label
+
+    tabs = st.tabs([_tab_label(platform) for platform in tab_platforms])
     for platform, tab in zip(tab_platforms, tabs):
         with tab:
+            if platform not in record.ContentVariants:
+                _render_ungenerated_platform_tab(record, platform)
+                continue
+
             platform_config = platforms_config.get("platforms", {}).get(platform, {})
             render_platform_tab(
                 record,
@@ -135,7 +263,6 @@ def main() -> None:
     st.caption("Discover topics, draft posts, review, and publish.")
 
     platforms_config = load_platforms_config()
-    enabled = enabled_platforms(platforms_config)
 
     with st.sidebar:
         st.session_state.page = st.radio(
@@ -144,11 +271,13 @@ def main() -> None:
             index=0 if st.session_state.page == "Discover" else 1,
             label_visibility="collapsed",
         )
+        st.divider()
+        render_llm_model_selector()
 
     if st.session_state.page == "Discover":
         render_discover_page()
     else:
-        _render_review_page(platforms_config, enabled)
+        _render_review_page(platforms_config)
 
 
 if __name__ == "__main__":

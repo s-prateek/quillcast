@@ -43,3 +43,29 @@ def set_active_persona_id(persona_id: str) -> None:
     prefs = load_preferences()
     prefs["active_persona_id"] = persona_id
     save_preferences(prefs)
+
+
+def get_selected_model_id(provider: str | None = None) -> str:
+    from shared.config import get_llm_provider
+
+    pid = provider or get_llm_provider()
+    prefs = load_preferences()
+    models = prefs.get("llm_model_by_provider", {})
+    if isinstance(models, dict):
+        selected = str(models.get(pid, "")).strip()
+        if selected:
+            return selected
+    return ""
+
+
+def set_selected_model_id(model_id: str, *, provider: str | None = None) -> None:
+    from shared.config import get_llm_provider
+
+    pid = provider or get_llm_provider()
+    prefs = load_preferences()
+    models = prefs.get("llm_model_by_provider", {})
+    if not isinstance(models, dict):
+        models = {}
+    models[pid] = model_id.strip()
+    prefs["llm_model_by_provider"] = models
+    save_preferences(prefs)

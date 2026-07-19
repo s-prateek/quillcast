@@ -1,0 +1,40 @@
+# LLM model chains — copy to config/llm.yaml (optional; falls back to this file).
+# Models are ordered best → fallback. Generation tries your selected model first,
+# then walks down the list on rate limits (429/503). If cross_provider_fallback
+# is true, it tries the other provider when every model in the active one is limited.
+#
+# Gemini list below matches Google AI Studio free tier (July 2026): Flash-family
+# models only. Pro models (2.5 Pro, 3.1 Pro, etc.) are paid-only — not listed.
+
+cross_provider_fallback: true
+
+providers:
+  claude:
+    models:
+      - id: claude-sonnet-4-20250514
+        label: Claude Sonnet 4
+        note: Best writing quality — use for blog and nuanced voice
+      - id: claude-3-5-sonnet-latest
+        label: Claude 3.5 Sonnet
+        note: Strong balance of quality and speed
+      - id: claude-3-5-haiku-latest
+        label: Claude 3.5 Haiku
+        note: Fast and cheap — good fallback when rate limited
+
+  gemini:
+    models:
+      - id: gemini-3.5-flash
+        label: Gemini 3.5 Flash
+        note: Best free-tier quality — stable, frontier intelligence (default)
+      - id: gemini-3-flash-preview
+        label: Gemini 3 Flash
+        note: Strong 3.x preview — good for nuanced drafts
+      - id: gemini-2.5-flash
+        label: Gemini 2.5 Flash
+        note: Proven workhorse — hybrid reasoning, great for blog posts
+      - id: gemini-3.1-flash-lite
+        label: Gemini 3.1 Flash Lite
+        note: Stable lite model — high volume fallback
+      - id: gemini-2.5-flash-lite
+        label: Gemini 2.5 Flash Lite
+        note: Highest free quota (~15 RPM) — last resort when rate limited

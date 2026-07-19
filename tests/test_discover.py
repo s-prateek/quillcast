@@ -43,6 +43,29 @@ def test_discover_topics_uses_llm_when_available(mock_fetch, mock_curate, monkey
 
 @patch("shared.discover.curate_topic_candidates")
 @patch("shared.discover.fetch_articles")
+def test_discover_topics_passes_exclude_titles(mock_fetch, mock_curate, monkeypatch, tmp_path):
+    mock_fetch.return_value = [
+        Article(
+            title="Fresh story",
+            url="https://example.com/fresh",
+            summary="Summary",
+            published_at=datetime.now(timezone.utc),
+        )
+    ]
+    mock_curate.return_value = []
+
+    repo_config = Path(__file__).resolve().parent.parent / "config"
+    shutil.copy(repo_config / "personas.example.yaml", tmp_path / "personas.example.yaml")
+    shutil.copy(repo_config / "platforms.example.yaml", tmp_path / "platforms.example.yaml")
+    monkeypatch.setenv("QUILLCAST_CONFIG_DIR", str(tmp_path))
+
+    discover_topics(persona_id="default", use_llm=True, exclude_titles=["Already shown"])
+    mock_curate.assert_called_once()
+    assert mock_curate.call_args.kwargs["exclude_titles"] == ["Already shown"]
+
+
+@patch("shared.discover.curate_topic_candidates")
+@patch("shared.discover.fetch_articles")
 def test_discover_topics_falls_back_when_llm_fails(mock_fetch, mock_curate, monkeypatch, tmp_path):
     mock_fetch.return_value = [
         Article(
