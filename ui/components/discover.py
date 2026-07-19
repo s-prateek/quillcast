@@ -7,6 +7,7 @@ from shared.discover import discover_topics
 from shared.generate import generate_post_for_topic, generate_post_from_idea
 from shared.models import TopicCandidate
 from shared.preferences import get_active_persona_id, set_active_persona_id
+from ui.components.llm_selector import notify_llm_fallback
 
 
 def _init_session_state() -> None:
@@ -53,6 +54,31 @@ def _candidate_by_id(candidate_id: str) -> TopicCandidate | None:
     return None
 
 
+def _merge_topic_candidates(
+    existing: list[TopicCandidate],
+    new_candidates: list[TopicCandidate],
+) -> list[TopicCandidate]:
+    seen = {candidate.title.strip().lower() for candidate in existing}
+    merged = list(existing)
+    next_index = len(existing)
+    for candidate in new_candidates:
+        key = candidate.title.strip().lower()
+        if not key or key in seen:
+            continue
+        merged.append(
+            TopicCandidate(
+                id=f"topic-{next_index}",
+                title=candidate.title,
+                hook=candidate.hook,
+                source_url=candidate.source_url,
+                source_type=candidate.source_type,
+            )
+        )
+        seen.add(key)
+        next_index += 1
+    return merged
+
+
 def _open_draft(post_id: str) -> None:
     st.session_state.selected_draft_id = post_id
     st.session_state.page = "Review"
@@ -62,18 +88,51 @@ def _open_draft(post_id: str) -> None:
     st.rerun()
 
 
+def _fetch_topics(persona_id: str, *, append: bool) -> None:
+    existing = st.session_state.topic_candidates if append else []
+    exclude_titles = [candidate.title for candidate in existing]
+    with st.spinner("Reading RSS feeds and curating topics…"):
+        new_candidates = discover_topics(
+            persona_id=persona_id,
+            use_llm=True,
+            exclude_titles=exclude_titles or None,
+        )
+        if append:
+            st.session_state.topic_candidates = _merge_topic_candidates(existing, new_candidates)
+        else:
+            st.session_state.topic_candidates = new_candidates
+            st.session_state.selected_candidate_id = None
+    notify_llm_fallback()
+
+
 def _render_trending_tab(persona_id: str) -> None:
     st.caption("Fetch today's RSS stories for this persona, pick one, then generate a draft.")
 
-    if st.button("Fetch trending topics", type="primary", use_container_width=True):
-        with st.spinner("Reading RSS feeds and curating topics…"):
+    fetch_cols = st.columns(2)
+    with fetch_cols[0]:
+        if st.button("Fetch trending topics", type="primary", use_container_width=True):
             try:
-                st.session_state.topic_candidates = discover_topics(
-                    persona_id=persona_id,
-                    use_llm=True,
-                )
-                st.session_state.selected_candidate_id = None
+                _fetch_topics(persona_id, append=False)
                 st.success(f"Found {len(st.session_state.topic_candidates)} topics.")
+            except RuntimeError as exc:
+                st.error(str(exc))
+
+    with fetch_cols[1]:
+        has_candidates = bool(st.session_state.topic_candidates)
+        if st.button(
+            "Fetch more ideas",
+            use_container_width=True,
+            disabled=not has_candidates,
+            help="Load additional topics without clearing the current list",
+        ):
+            try:
+                before = len(st.session_state.topic_candidates)
+                _fetch_topics(persona_id, append=True)
+                added = len(st.session_state.topic_candidates) - before
+                if added:
+                    st.success(f"Added {added} more topics.")
+                else:
+                    st.info("No new topics found — try again later or adjust your RSS feeds.")
             except RuntimeError as exc:
                 st.error(str(exc))
 

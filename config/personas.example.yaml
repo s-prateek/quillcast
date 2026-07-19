@@ -5,6 +5,13 @@ default_persona: default
 personas:
   default:
     label: Default
+    # Optional: subset of globally enabled platforms this persona uses.
+    # platforms:
+    #   - linkedin
+    #   - blog
+    # Platforms generated on first draft; others generate when you open their tab.
+    default_platforms:
+      - linkedin
     voice:
       author_name: Your Name
       description: How you write.

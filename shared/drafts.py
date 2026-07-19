@@ -47,6 +47,14 @@ def list_records(*, status: str | None = None) -> list[PostRecord]:
     return records
 
 
+def delete_record(post_id: str) -> bool:
+    path = _drafts_dir() / f"{post_id}.json"
+    if not path.is_file():
+        return False
+    path.unlink()
+    return True
+
+
 def update_target_status(
     post_id: str,
     platform: str,

@@ -225,3 +225,112 @@ def load_topics_config() -> dict[str, Any]:
 def enabled_platforms(platforms_config: dict[str, Any]) -> list[str]:
     platforms = platforms_config.get("platforms", {})
     return sorted(name for name, cfg in platforms.items() if cfg.get("enabled"))
+
+
+def persona_platforms(persona_id: str | None = None) -> list[str]:
+    """Platforms a persona can publish to (persona list ∩ globally enabled)."""
+    global_enabled = set(enabled_platforms(load_platforms_config()))
+    persona = get_persona(persona_id)
+    persona_list = persona.get("platforms")
+    if isinstance(persona_list, list) and persona_list:
+        return sorted(platform for platform in persona_list if platform in global_enabled)
+    return sorted(global_enabled)
+
+
+def default_platforms_for_persona(persona_id: str | None = None) -> list[str]:
+    """Platforms to generate on initial draft creation."""
+    available = persona_platforms(persona_id)
+    if not available:
+        return []
+
+    persona = get_persona(persona_id)
+    default_list = persona.get("default_platforms")
+    if isinstance(default_list, list) and default_list:
+        resolved = sorted(platform for platform in default_list if platform in set(available))
+        if resolved:
+            return resolved
+    return available
+
+
+def load_llm_config() -> dict[str, Any]:
+    """Load llm.yaml if present, else committed llm.example.yaml."""
+    return _load_yaml_with_fallback("llm.yaml", "llm.example.yaml", label="LLM config")
+
+
+def get_llm_provider() -> str:
+    name = os.environ.get("LLM_PROVIDER", "claude").strip().lower()
+    if name not in {"claude", "gemini"}:
+        raise RuntimeError(f"Unsupported LLM_PROVIDER: {name!r} (use 'claude' or 'gemini')")
+    return name
+
+
+def list_llm_model_options(provider: str | None = None) -> list[dict[str, str]]:
+    """Models for a provider, ordered best → fallback."""
+    pid = provider or get_llm_provider()
+    config = load_llm_config()
+    providers = config.get("providers", {})
+    provider_cfg = providers.get(pid, {}) if isinstance(providers, dict) else {}
+    models = provider_cfg.get("models", []) if isinstance(provider_cfg, dict) else []
+
+    options: list[dict[str, str]] = []
+    if isinstance(models, list):
+        for entry in models:
+            if not isinstance(entry, dict):
+                continue
+            model_id = str(entry.get("id", "")).strip()
+            if not model_id:
+                continue
+            options.append(
+                {
+                    "id": model_id,
+                    "label": str(entry.get("label", model_id)).strip() or model_id,
+                    "note": str(entry.get("note", "")).strip(),
+                }
+            )
+    return options
+
+
+def llm_cross_provider_fallback_enabled() -> bool:
+    config = load_llm_config()
+    return bool(config.get("cross_provider_fallback", True))
+
+
+def resolve_model_attempt_order(
+    *,
+    provider: str | None = None,
+    preferred_model: str | None = None,
+) -> list[tuple[str, str]]:
+    """
+    Return (provider, model_id) pairs to try, starting with preferred_model.
+    Remaining models follow config order; optional cross-provider fallback appended.
+    """
+    active_provider = provider or get_llm_provider()
+    env_override = os.environ.get("LLM_MODEL", "").strip()
+    preferred = (preferred_model or env_override or "").strip()
+
+    def chain_for(pid: str) -> list[str]:
+        return [option["id"] for option in list_llm_model_options(pid)]
+
+    def ordered_models(pid: str) -> list[str]:
+        models = chain_for(pid)
+        if not models:
+            if pid == "gemini":
+                return ["gemini-3.5-flash"]
+            return ["claude-3-5-haiku-latest"]
+
+        if preferred and pid == active_provider:
+            if preferred in models:
+                return [preferred, *[model for model in models if model != preferred]]
+            return [preferred, *models]
+        return models
+
+    attempts: list[tuple[str, str]] = [(active_provider, model) for model in ordered_models(active_provider)]
+
+    if llm_cross_provider_fallback_enabled():
+        other_provider = "gemini" if active_provider == "claude" else "claude"
+        for model in chain_for(other_provider):
+            pair = (other_provider, model)
+            if pair not in attempts:
+                attempts.append(pair)
+
+    return attempts

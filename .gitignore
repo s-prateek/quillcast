@@ -37,6 +37,7 @@ __pypackages__/
 # ── Local config (copy from *.example.yaml templates) ────────────────────────
 config/personas.yaml
 config/platforms.yaml
+config/llm.yaml
 config/local-backup/
 
 # ── Testing & coverage ────────────────────────────────────────────────────────
